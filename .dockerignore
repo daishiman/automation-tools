@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+.github
+.vscode
+coverage
+playwright-report
+out
+dist
+.env*
+npm-debug.log*

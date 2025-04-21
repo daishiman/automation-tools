@@ -1,0 +1,77 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 git add前に簡易チェック実行..."
+
+# プロジェクトのルートディレクトリに移動
+cd "$(git rev-parse --show-toplevel)"
+
+# 変更されたファイルを取得
+all_staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+js_ts_files=$(echo "$all_staged_files" | grep -E '\.tsx?$|\.jsx?$')
+rules_md_files=$(echo "$all_staged_files" | grep -E '^rules/.+\.md$')
+
+# rulesディレクトリのMarkdownファイルがステージングされている場合
+if [ ! -z "$rules_md_files" ]; then
+  echo "📝 rulesディレクトリの変更を検出。基本検証を実行..."
+  rules_errors=0
+
+  for file in $rules_md_files; do
+    # ファイルの基本検証
+    echo "  - $file の基本検証中..."
+
+    # 1. ファイルが空でないことを確認
+    if [ ! -s "$file" ]; then
+      echo "    ❌ $file が空です"
+      rules_errors=1
+      continue
+    fi
+
+    # 2. 最低限の構造チェック
+    if ! grep -q "^# " "$file"; then
+      echo "    ⚠️ $file に適切な見出し(#)がありません"
+    fi
+
+    # 3. 文法エラーチェック（不完全な見出しや箇条書き）
+    if grep -q "^#\s*$" "$file" || grep -q "^-\s*$" "$file"; then
+      echo "    ⚠️ $file に不完全な見出しまたは箇条書きがあります"
+    fi
+  done
+
+  if [ $rules_errors -ne 0 ]; then
+    echo "❌ rulesファイルに問題があります。修正してから再度 git add を実行してください。"
+    exit 1
+  else
+    echo "✅ rulesファイルの基本検証に成功しました"
+  fi
+fi
+
+# JS/TSファイルがない場合はスキップ
+if [ -z "$js_ts_files" ]; then
+  echo "📝 JSまたはTSファイルの変更なし。スキップします。"
+  exit 0
+fi
+
+# 特定のファイル数が多い場合はスキップ（オプション）
+file_count=$(echo "$js_ts_files" | wc -l)
+if [ $file_count -gt 10 ]; then
+  echo "⚠️ 変更ファイル数が多い(${file_count}個)。詳細テストはスキップします。"
+  exit 0
+fi
+
+# 関連テスト実行（高速モード）
+echo "🧪 変更関連テスト実行中..."
+if grep -q "\"test:changed\"" package.json; then
+  pnpm test:changed
+else
+  pnpm vitest --findRelatedTests $js_ts_files --passWithNoTests
+fi
+test_exit_code=$?
+
+if [ $test_exit_code -ne 0 ]; then
+  echo "❌ テスト失敗。修正してから再度実行してください。"
+  exit 1
+else
+  echo "✅ テスト成功！ステージングを続行します。"
+  exit 0
+fi

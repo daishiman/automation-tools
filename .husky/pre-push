@@ -1,0 +1,237 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🔍 プッシュ前チェック実行中..."
+
+# プロジェクトのルートディレクトリに移動
+cd "$(git rev-parse --show-toplevel)"
+
+# 現在のブランチを取得
+current_branch=$(git symbolic-ref --short HEAD)
+target_branch=$(git rev-parse --abbrev-ref @{upstream} 2>/dev/null | sed 's/origin\///')
+
+# ブランチによる条件分岐
+is_main_branch=false
+if [[ "$current_branch" == "main" || "$current_branch" == "dev" || "$target_branch" == "main" || "$target_branch" == "dev" ]]; then
+  is_main_branch=true
+  echo "📣 main/devブランチへの/からのプッシュを検出 - 完全チェックモード"
+  echo "🌐 現在: $current_branch → ターゲット: ${target_branch:-未設定}"
+else
+  echo "📣 開発ブランチへのプッシュを検出 - 基本チェックモード"
+  echo "🌐 現在: $current_branch → ターゲット: ${target_branch:-未設定}"
+fi
+
+# 実行開始時間を記録
+start_time=$(date +%s)
+
+# 型チェック（必須）
+echo "📝 型チェック実行中..."
+pnpm type-check
+typecheck_result=$?
+
+# テスト実行（ブランチに応じて挙動変更）
+echo "🧪 テスト実行中..."
+if [ "$is_main_branch" = true ]; then
+  # カバレッジ測定 (テスト戦略の目標：重要ロジック70%以上)
+  if grep -q "\"test:coverage\"" package.json; then
+    pnpm test:coverage
+  else
+    pnpm vitest run --coverage
+  fi
+  coverage_result=$?
+  # カバレッジが目標値以下の場合はエラー
+  coverage_file=$(find . -name "coverage-summary.json" -type f | head -n 1)
+  if [ -n "$coverage_file" ]; then
+    coverage_percent=$(cat $coverage_file | grep -o '"lines":{"total":[0-9]*,"covered":[0-9]*,"skipped":[0-9]*,"pct":[0-9]*\.[0-9]*' | grep -o 'pct":[0-9]*\.[0-9]*' | grep -o '[0-9]*\.[0-9]*')
+    if (( $(echo "$coverage_percent < 70" | bc -l) )); then
+      echo "⚠️ コードカバレッジが目標値に達していません: $coverage_percent% (目標: 70%)"
+      coverage_low=1
+    else
+      coverage_low=0
+    fi
+  else
+    echo "⚠️ カバレッジレポートが見つかりません"
+    coverage_low=0
+  fi
+else
+  # 開発ブランチでは高速テスト
+  pnpm vitest run --bail
+  coverage_result=0
+  coverage_low=0
+fi
+test_result=$?
+
+# ESLintチェック
+echo "🧹 ESLint実行中..."
+pnpm lint
+lint_result=$?
+
+# フォーマットチェック
+echo "💅 Prettier実行中..."
+if grep -q "\"format\"" package.json; then
+  pnpm format
+elif grep -q "\"fmt\"" package.json; then
+  pnpm fmt
+else
+  echo "フォーマットコマンドが見つかりません"
+fi
+format_result=$?
+
+# セキュリティチェック
+echo "🔒 セキュリティチェック実行中..."
+pnpm audit --production
+security_result=$?
+
+# rulesディレクトリの包括的チェック（main/devブランチでは必須）
+echo "📚 ドキュメント整合性チェック実行中..."
+
+# rulesディレクトリが存在するかチェック
+if [ -d "rules" ]; then
+  # すべてのルールファイルを検証
+  all_rules_files=$(find rules -name "*.md")
+  rules_error=0
+  rules_warnings=0
+
+  # ルールディレクトリの構造チェック
+  required_dirs=("0_common" "1_business_requirements" "2_backend_functional_requirements"
+                 "3_frontend_functional_requirements" "4_nonFunctional_requirements"
+                 "5_development_process" "6_risk_and_release_plan")
+
+  for dir in "${required_dirs[@]}"; do
+    if [ ! -d "rules/$dir" ]; then
+      echo "❌ 必須ディレクトリが不足: rules/$dir"
+      rules_error=1
+    fi
+  done
+
+  # README.mdの存在確認
+  if [ ! -f "rules/README.md" ]; then
+    echo "❌ rules/README.mdが見つかりません"
+    rules_error=1
+  fi
+
+  # 各Markdownファイルの検証
+  for file in $all_rules_files; do
+    # メインヘッダーチェック
+    if ! grep -q "^# " "$file"; then
+      echo "⚠️ $file にメインヘッダー(#)がありません"
+      rules_warnings=$((rules_warnings + 1))
+    fi
+
+    # ファイル内リンク確認
+    broken_links=$(grep -o "\[.*\](.*\.md)" "$file" | grep -v "http" | sed 's/.*(\(.*\))/\1/' | while read link; do
+      linked_file=$(echo "$link" | sed 's/#.*//')
+      if [ ! -z "$linked_file" ] && [ ! -f "$(dirname "$file")/$linked_file" ]; then
+        echo "$linked_file"
+      fi
+    done)
+
+    if [ ! -z "$broken_links" ]; then
+      echo "⚠️ $file に無効なリンクがあります: $broken_links"
+      rules_warnings=$((rules_warnings + 1))
+    fi
+
+    # 特定のカテゴリに基づく検証
+    if [[ "$file" == *"requirements"* ]]; then
+      # 要件定義ファイルには必ず複数セクションが必要
+      section_count=$(grep -c "^## " "$file")
+      if [ "$section_count" -lt 2 ]; then
+        echo "⚠️ $file の要件セクション(##)が不足しています($section_count個のみ)"
+        rules_warnings=$((rules_warnings + 1))
+      fi
+    fi
+  done
+
+  # 参照整合性チェック（各ディレクトリ間の相互参照）
+  echo "🔄 要件の参照整合性をチェック中..."
+  if [ -d "rules/1_business_requirements" ] && [ -d "rules/2_backend_functional_requirements" ]; then
+    business_req=$(grep -r "^## [0-9]\." "rules/1_business_requirements" | sed 's/.*## \([0-9]\.[0-9]*\).*/\1/' | sort)
+    backend_imp=$(grep -r "対応する業務要件:" "rules/2_backend_functional_requirements" | sed 's/.*対応する業務要件: \([0-9]\.[0-9,]*\).*/\1/' | tr ',' '\n' | sort -u)
+
+    # 相互参照の確認は、main/devブランチの場合のみ厳格に
+    if [ "$is_main_branch" = true ]; then
+      for req in $business_req; do
+        if ! echo "$backend_imp" | grep -q "$req"; then
+          echo "⚠️ 業務要件 $req の実装参照が見つかりません"
+          rules_warnings=$((rules_warnings + 1))
+        fi
+      done
+    fi
+  fi
+
+  if [ "$rules_error" -ne 0 ]; then
+    echo "❌ ドキュメント構造にエラーがあります。修正が必要です。"
+    rules_check_result=1
+  elif [ "$rules_warnings" -gt 0 ] && [ "$is_main_branch" = true ]; then
+    echo "⚠️ ドキュメントに$rules_warnings個の警告があります。"
+    rules_check_result=1
+  else
+    echo "✅ ドキュメント整合性チェック成功"
+    rules_check_result=0
+  fi
+else
+  echo "📝 rulesディレクトリが見つかりません。ドキュメントチェックをスキップします。"
+  rules_check_result=0
+fi
+
+# main/devブランチのみ実行する追加チェック
+if [ "$is_main_branch" = true ]; then
+  # ビルドチェック
+  echo "🏗️ ビルドテスト実行中..."
+  if grep -q "\"build\"" package.json; then
+    pnpm build
+    build_result=$?
+  else
+    echo "ビルドコマンドが見つかりません"
+    build_result=0
+  fi
+else
+  build_result=0
+fi
+
+# 実行終了時間を記録
+end_time=$(date +%s)
+execution_time=$((end_time - start_time))
+
+# 結果の表示
+echo "============================="
+echo "🔍 実行結果"
+
+# エラーが発生したかどうかを判定
+if [ $typecheck_result -ne 0 ] || [ $test_result -ne 0 ] || [ $format_result -ne 0 ] || [ $lint_result -ne 0 ] || [ $security_result -ne 0 ] || [ $build_result -ne 0 ] || [ $coverage_low -ne 0 ] || [ $rules_check_result -ne 0 ]; then
+  echo "❌ 以下のチェックが失敗:"
+  [ $typecheck_result -ne 0 ] && echo "  - 型チェック"
+  [ $test_result -ne 0 ] && echo "  - テスト"
+  [ $format_result -ne 0 ] && echo "  - フォーマット"
+  [ $lint_result -ne 0 ] && echo "  - ESLint"
+  [ $security_result -ne 0 ] && echo "  - セキュリティ"
+  [ $build_result -ne 0 ] && echo "  - ビルド"
+  [ $coverage_low -ne 0 ] && echo "  - コードカバレッジ不足"
+  [ $rules_check_result -ne 0 ] && echo "  - ドキュメント整合性"
+  exit_code=1
+else
+  echo "✅ すべてのチェック成功"
+  exit_code=0
+fi
+
+echo "⏱️ 合計実行時間: ${execution_time}秒"
+
+# パフォーマンスチェック (main/devのみ、オプション)
+if [ "$is_main_branch" = true ] && [ -f "node_modules/.bin/lighthouse" ]; then
+  echo "⚡ パフォーマンスチェックを実行しますか？(y/N): "
+  read -n 1 -r
+  echo    # 改行
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    echo "⚡ パフォーマンスチェック実行中..."
+    node_modules/.bin/lighthouse http://localhost:3000 --output=json --output-path=./lighthouse-report.json --chrome-flags="--headless" --throttling.cpuSlowdownMultiplier=4
+    # 結果確認
+    ttfb=$(cat lighthouse-report.json | grep -o '"time-to-first-byte":{[^}]*}' | grep -o '"numericValue":[0-9]*\.[0-9]*' | grep -o '[0-9]*\.[0-9]*')
+    if (( $(echo "$ttfb > 500" | bc -l) )); then
+      echo "⚠️ TTFBが目標値を超えています: ${ttfb}ms (目標: 500ms以内)"
+    else
+      echo "✅ パフォーマンス目標達成: TTFB ${ttfb}ms"
+    fi
+  fi
+fi
+
+exit $exit_code
