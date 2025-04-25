@@ -32,5 +32,14 @@ module.exports = {
         '@typescript-eslint/explicit-function-return-type': 'off',
       },
     },
+    {
+      // scripts ディレクトリ内のファイルに対する緩和ルール
+      files: ['scripts/**/*.js'],
+      rules: {
+        'no-console': 'off',
+        'no-unused-vars': 'warn',
+        'no-control-regex': 'off',
+      },
+    },
   ],
 };

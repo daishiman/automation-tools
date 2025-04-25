@@ -58,7 +58,7 @@ jobs:
           # テスト用環境変数
           TEST_API_URL: http://localhost:3000/api
           NEXT_PUBLIC_API_BASE_URL: /api
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       # テスト結果ディレクトリの作成
       - name: テスト結果ディレクトリの作成
@@ -129,7 +129,7 @@ jobs:
         env:
           # テスト用環境変数
           TEST_MOCK_API_URL: http://localhost:8080
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       # テスト結果ディレクトリの作成
       - name: テスト結果ディレクトリの作成
@@ -209,8 +209,8 @@ jobs:
           fi
         env:
           # テスト用環境変数
-          DATABASE_URL: "sqlite::memory:"
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          DATABASE_URL: 'sqlite::memory:'
+          NODE_OPTIONS: '--max-old-space-size=4096'
 
       # テスト結果ディレクトリの作成
       - name: テスト結果ディレクトリの作成

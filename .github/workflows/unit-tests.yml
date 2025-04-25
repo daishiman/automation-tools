@@ -41,11 +41,27 @@ jobs:
       - name: 依存関係のインストール
         run: pnpm install
 
+      # テスト環境の確認
+      - name: テスト環境確認
+        run: |
+          echo "Node.jsバージョン: $(node -v)"
+          echo "NPMバージョン: $(npm -v)"
+          echo "PNPMバージョン: $(pnpm -v)"
+          echo "作業ディレクトリ: $(pwd)"
+          ls -la
+          echo "テスト設定ファイル内容:"
+          cat vitest.config.ts
+
       # テストの実行（失敗しても続行）
       - name: テスト実行
-        run: pnpm test:run || echo "テスト実行に問題がありましたが続行します"
+        run: pnpm test:run --no-threads || echo "テスト実行に問題がありましたが続行します"
         env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          # パスエイリアス解決のために必要な環境変数
+          NODE_PATH: 'src'
+          # Vitestの詳細ログを有効化
+          VITEST_LOG_LEVEL: 'info'
+          DEBUG: 'vite:*'
 
       # JUnitレポート形式のテスト結果を保存
       - name: テスト結果の保存
@@ -80,9 +96,14 @@ jobs:
 
       # カバレッジを含めたテスト実行（失敗しても続行）
       - name: カバレッジ計測
-        run: pnpm test:coverage || echo "カバレッジ計測に問題がありましたが続行します"
+        run: pnpm test:coverage --no-threads || echo "カバレッジ計測に問題がありましたが続行します"
         env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          # パスエイリアス解決のために必要な環境変数
+          NODE_PATH: 'src'
+          # Vitestの詳細ログを有効化
+          VITEST_LOG_LEVEL: 'info'
+          DEBUG: 'vite:*'
 
       # カバレッジディレクトリが存在しない場合は作成
       - name: カバレッジディレクトリ確認
@@ -166,9 +187,14 @@ jobs:
 
       # コンポーネントテストの実行（失敗しても続行）
       - name: コンポーネントテスト実行
-        run: pnpm test:components || echo "コンポーネントテスト実行に問題がありましたが続行します"
+        run: pnpm test:components --no-threads || echo "コンポーネントテスト実行に問題がありましたが続行します"
         env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          # パスエイリアス解決のために必要な環境変数
+          NODE_PATH: 'src'
+          # Vitestの詳細ログを有効化
+          VITEST_LOG_LEVEL: 'info'
+          DEBUG: 'vite:*'
         continue-on-error: true
 
       # テスト結果の保存

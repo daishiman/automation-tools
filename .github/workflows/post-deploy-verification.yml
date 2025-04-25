@@ -2,7 +2,7 @@ name: デプロイ後検証
 
 on:
   workflow_run:
-    workflows: ["本番環境 CI/CD"]
+    workflows: ['本番環境 CI/CD']
     types:
       - completed
     branches:

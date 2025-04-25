@@ -12,6 +12,7 @@ start_time=$(date +%s)
 # 変更されたファイルを取得
 all_changed_files=$(git diff --cached --name-only --diff-filter=ACM)
 js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' || true)
+css_json_md_files=$(echo "$all_changed_files" | grep -E '\.(json|md|mdx|css)$' || true)
 rules_files=$(echo "$all_changed_files" | grep -E '^rules/.+\.md$' || true)
 
 # 変更がない場合は早期終了
@@ -23,38 +24,41 @@ fi
 # エラーが発生したかどうかを追跡
 has_errors=0
 
-# 1. lint-staged（最も効率的な方法）
+# 1. 手動によるステージングファイルのlintとフォーマット
 echo "🧹 ESLint/Prettier実行中..."
-if [ -f "lint-staged.config.js" ]; then
-  pnpm lint-staged
+
+# JS/TSファイルのlintとフォーマット
+if [ ! -z "$js_ts_files" ]; then
+  echo "JavaScript/TypeScriptファイルのチェック中..."
+  # ESLint実行
+  pnpm eslint --fix $js_ts_files
   lint_result=$?
-else
-  # lintチェック
-  pnpm lint
-  lint_result=$?
+
+  if [ $lint_result -ne 0 ]; then
+    echo "❌ ESLintエラーが見つかりました。修正してから再度コミットしてください。"
+    has_errors=1
+  fi
+
+  # Prettier実行
+  pnpm prettier --write $js_ts_files
+  prettier_result=$?
+
+  if [ $prettier_result -ne 0 ]; then
+    echo "❌ Prettierの実行に失敗しました。"
+    has_errors=1
+  fi
 fi
 
-if [ $lint_result -ne 0 ]; then
-  echo "❌ Lintエラーが見つかりました。修正してから再度コミットしてください。"
-  has_errors=1
-fi
+# CSS/JSON/MD/MDXファイルのフォーマット
+if [ ! -z "$css_json_md_files" ]; then
+  echo "CSS/JSON/Markdownファイルのフォーマット中..."
+  pnpm prettier --write $css_json_md_files
+  css_json_md_result=$?
 
-# 2. フォーマットチェック
-echo "💅 Prettier実行中..."
-if grep -q "\"format\"" package.json; then
-  pnpm format
-  format_result=$?
-elif grep -q "\"fmt\"" package.json; then
-  pnpm fmt
-  format_result=$?
-else
-  echo "ℹ️ フォーマットコマンドが見つかりません"
-  format_result=0
-fi
-
-if [ $format_result -ne 0 ]; then
-  echo "⚠️ フォーマットに問題があります。修正を検討してください。"
-  # フォーマットはエラーとして扱わない（警告のみ）
+  if [ $css_json_md_result -ne 0 ]; then
+    echo "❌ フォーマットに失敗しました。"
+    has_errors=1
+  fi
 fi
 
 # 3. 型チェック（JSファイルのみの場合はスキップ可能）
@@ -76,7 +80,7 @@ fi
 if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ]; then
   echo "🧪 変更関連テスト実行中..."
   # 変更されたファイルに対するテスト実行(効率的な方法)
-  NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest related --run $(git diff --name-only --staged | grep -E '\.tsx?$|\.jsx?$') --passWithNoTests
+  NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest related --run $js_ts_files --passWithNoTests
   test_result=$?
 
   if [ $test_result -ne 0 ]; then

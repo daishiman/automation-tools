@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // モジュール全体をモック
-vi.mock('../../../../../../src/infrastructure/database/drizzle/task/schema', () => ({
+vi.mock('@/infrastructure/database/drizzle/task/schema', () => ({
   tasks: {
     _: {
       config: {
@@ -12,7 +12,7 @@ vi.mock('../../../../../../src/infrastructure/database/drizzle/task/schema', () 
 }));
 
 // 実際にテストする前に正しいモックをセットアップする
-describe.skip('タスクスキーマ', () => {
+describe('タスクスキーマ', () => {
   // テスト前にモックを設定
   beforeEach(async () => {
     // モックはすでにvi.mockで設定済み
@@ -21,7 +21,7 @@ describe.skip('タスクスキーマ', () => {
   it('タスクテーブルが存在するべき', async () => {
     // モジュールを実際にインポート（テスト中にモック化される）
     const { tasks } = await import(
-      '../../../../../../src/infrastructure/database/drizzle/task/schema'
+      '@/infrastructure/database/drizzle/task/schema'
     );
 
     // テーブル設定が存在することを確認
@@ -34,7 +34,7 @@ describe.skip('タスクスキーマ', () => {
   it('Task型とNewTask型が定義されているべき', async () => {
     // 型のインポートは直接テストできないため、インポートができることのみを確認
     const schema = await import(
-      '../../../../../../src/infrastructure/database/drizzle/task/schema'
+      '@/infrastructure/database/drizzle/task/schema'
     );
     expect(schema).toBeDefined();
   });
