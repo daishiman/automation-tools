@@ -20,6 +20,7 @@
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "format": "prettier --write \"**/*.{ts,tsx,md,mdx,css,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,mdx,css,json}\"",
     "fmt": "prettier --write \"**/*.{ts,tsx,md,mdx,css,json}\"",
     "type-check": "tsc --pretty --noEmit",
     "db:generate": "drizzle-kit generate:sqlite",
