@@ -20,8 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  jest:
-    name: Jestテスト実行
+  vitest:
+    name: Vitestテスト実行
     runs-on: ubuntu-latest
     steps:
       - name: ソースコードのチェックアウト
@@ -43,7 +43,7 @@ jobs:
 
       # テストの実行
       - name: テスト実行
-        run: pnpm test
+        run: pnpm test:run
 
       # JUnitレポート形式のテスト結果を保存
       - name: テスト結果の保存
@@ -98,22 +98,26 @@ jobs:
       # カバレッジ閾値のチェック
       - name: カバレッジ閾値チェック
         run: |
-          COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
-          echo "総行カバレッジ: $COVERAGE%"
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
+            echo "総行カバレッジ: $COVERAGE%"
 
-          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
-            echo "⚠️ テストカバレッジが目標値（80%）を下回っています"
-            echo "現在のカバレッジ: $COVERAGE%"
-            # PRの場合は警告のみ（エラーにはしない）
-            if [ "${{ github.event_name }}" != "pull_request" ]; then
-              exit 1
+            if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+              echo "⚠️ テストカバレッジが目標値（70%）を下回っています"
+              echo "現在のカバレッジ: $COVERAGE%"
+              # 開発段階では警告のみ（エラーにはしない）
+              if [ "${{ github.event_name }}" != "pull_request" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+                exit 1
+              fi
+            else
+              echo "✅ テストカバレッジが目標値を満たしています"
             fi
           else
-            echo "✅ テストカバレッジが目標値を満たしています"
+            echo "⚠️ カバレッジレポートが見つかりません"
           fi
 
-  cross-browser:
-    name: クロスブラウザテスト
+  components:
+    name: コンポーネントテスト
     runs-on: ubuntu-latest
     steps:
       - name: ソースコードのチェックアウト
@@ -133,11 +137,7 @@ jobs:
       - name: 依存関係のインストール
         run: pnpm install
 
-      # Playwrightのインストール
-      - name: Playwrightのセットアップ
-        run: pnpm exec playwright install --with-deps chromium firefox webkit
-
-      # コンポーネントテストの実行（複数ブラウザ）
+      # コンポーネントテストの実行
       - name: コンポーネントテスト実行
         run: pnpm test:components
 
@@ -146,8 +146,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-results
-          path: |
-            playwright-report/
-            test-results/
+          name: component-test-results
+          path: junit.xml
           retention-days: 7

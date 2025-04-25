@@ -11,6 +11,10 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:changed": "vitest related --run $(git diff --name-only --staged | grep -E '\\.tsx?$|\\.jsx?$')",
+    "test:components": "vitest run --config vitest.components.config.ts",
     "test:db:integration": "pnpm exec wrangler d1 execute automationa-tools-test --local --file=./tests/setup.sql && vitest run",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
@@ -72,7 +76,8 @@
     "cf:deploy:dev": "pnpm cf:deploy:preview",
     "cf:tail:dev": "pnpm cf:tail:preview",
     "cf:db:dev": "pnpm cf:db:preview",
-    "prettier": "prettier --write ."
+    "prettier": "prettier --write .",
+    "prepare": "husky"
   },
   "keywords": [],
   "author": "",
