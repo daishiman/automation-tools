@@ -54,7 +54,7 @@ if [ "$is_main_branch" = true ]; then
   fi
 else
   # 開発ブランチでは高速テスト
-  pnpm vitest run --bail
+  pnpm vitest run
   coverage_result=0
   coverage_low=0
 fi
