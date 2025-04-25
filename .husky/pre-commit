@@ -1,23 +1,149 @@
 #!/bin/sh
-# 最小の成功する pre-commit フック
+# エラーコードを明示的に管理
 
 echo "🔍 コミット前の基本チェック実行中..."
 
 # プロジェクトのルートディレクトリに移動
 cd "$(git rev-parse --show-toplevel)"
 
+# 開始時間を記録
+start_time=$(date +%s)
+
 # 変更されたファイルを取得
 all_changed_files=$(git diff --cached --name-only --diff-filter=ACM)
 js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' || true)
+rules_files=$(echo "$all_changed_files" | grep -E '^rules/.+\.md$' || true)
 
-# 基本チェックのみ実行
-echo "🧹 基本チェック中..."
-
-# セキュリティ問題は警告として扱う
-if [ ! -z "$js_ts_files" ]; then
-  echo "🧪 JS/TSファイルの変更を検出しました"
+# 変更がない場合は早期終了
+if [ -z "$all_changed_files" ]; then
+  echo "📝 変更ファイルなし。チェックをスキップします。"
+  exit 0
 fi
 
-# 常に成功で終了
-echo "✅ チェック完了！コミットを続行します"
-exit 0
+# エラーが発生したかどうかを追跡
+has_errors=0
+
+# 1. lint-staged（最も効率的な方法）
+echo "🧹 ESLint/Prettier実行中..."
+if [ -f "lint-staged.config.js" ]; then
+  pnpm lint-staged
+  lint_result=$?
+else
+  # lintチェック
+  pnpm lint
+  lint_result=$?
+fi
+
+if [ $lint_result -ne 0 ]; then
+  echo "❌ Lintエラーが見つかりました。修正してから再度コミットしてください。"
+  has_errors=1
+fi
+
+# 2. フォーマットチェック
+echo "💅 Prettier実行中..."
+if grep -q "\"format\"" package.json; then
+  pnpm format
+  format_result=$?
+elif grep -q "\"fmt\"" package.json; then
+  pnpm fmt
+  format_result=$?
+else
+  echo "ℹ️ フォーマットコマンドが見つかりません"
+  format_result=0
+fi
+
+if [ $format_result -ne 0 ]; then
+  echo "⚠️ フォーマットに問題があります。修正を検討してください。"
+  # フォーマットはエラーとして扱わない（警告のみ）
+fi
+
+# 3. 型チェック（JSファイルのみの場合はスキップ可能）
+if [ $has_errors -eq 0 ] && echo "$js_ts_files" | grep -q "\.tsx\?$"; then
+  echo "📘 型チェック実行中..."
+  pnpm type-check
+  type_check_result=$?
+
+  if [ $type_check_result -ne 0 ]; then
+    echo "❌ 型エラーが見つかりました。修正してから再度コミットしてください。"
+    has_errors=1
+  fi
+else
+  echo "📝 TSファイルの変更なし。型チェックをスキップします。"
+  type_check_result=0
+fi
+
+# 4. JS/TSファイルの変更がある場合、関連テスト実行
+if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ]; then
+  echo "🧪 変更関連テスト実行中..."
+  # 変更されたファイルに対するテスト実行(効率的な方法)
+  NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest related --run $(git diff --name-only --staged | grep -E '\.tsx?$|\.jsx?$') --passWithNoTests
+  test_result=$?
+
+  if [ $test_result -ne 0 ]; then
+    echo "❌ テストが失敗しました。修正してから再度コミットしてください。"
+    has_errors=1
+  fi
+else
+  echo "📝 テスト対象ファイルなし。テストをスキップします。"
+  test_result=0
+fi
+
+# 5. セキュリティチェック結果は警告として表示
+echo "🔒 セキュリティチェック実行中..."
+# セキュリティチェックはエラーを無視する
+pnpm audit --production --audit-level=critical || true
+echo "ℹ️ セキュリティの問題がある場合は将来的に対応を検討してください。"
+
+# 6. rulesディレクトリの変更ファイルのみ基本検証
+if [ $has_errors -eq 0 ] && [ ! -z "$rules_files" ]; then
+  echo "📋 ドキュメントファイルの基本検証中..."
+  rules_errors=0
+
+  for file in $rules_files; do
+    # ファイルの基本検証
+    echo "  - $file の基本検証中..."
+
+    # 1. ファイルが空でないことを確認
+    if [ ! -s "$file" ]; then
+      echo "    ❌ $file が空です"
+      rules_errors=1
+      continue
+    fi
+
+    # 2. 最低限の構造チェック
+    if ! grep -q "^# " "$file"; then
+      echo "    ⚠️ $file に適切な見出し(#)がありません"
+      rules_errors=1
+    fi
+
+    # 3. 文法エラーチェック（不完全な見出しや箇条書き）
+    if grep -q "^#\s*$" "$file" || grep -q "^-\s*$" "$file"; then
+      echo "    ⚠️ $file に不完全な見出しまたは箇条書きがあります"
+      rules_errors=1
+    fi
+  done
+
+  if [ $rules_errors -ne 0 ]; then
+    echo "❌ rulesファイルに問題があります。修正してから再度コミットしてください。"
+    has_errors=1
+  else
+    echo "✅ rulesファイルの基本検証に成功しました"
+  fi
+else
+  echo "📝 rules変更なし。ドキュメントチェックをスキップします。"
+fi
+
+# 実行終了時間と結果表示
+end_time=$(date +%s)
+execution_time=$((end_time - start_time))
+
+# 成功・失敗の表示とステータスコードの設定
+if [ $has_errors -eq 1 ]; then
+  echo "❌ チェック中にエラーが見つかりました。修正してから再度コミットしてください。"
+  echo "⏱️ 実行時間: ${execution_time}秒"
+  exit 1
+else
+  echo "✅ すべてのチェック成功！コミットを続行します。"
+  echo "⏱️ 実行時間: ${execution_time}秒"
+  exit 0
+fi

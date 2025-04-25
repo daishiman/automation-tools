@@ -7,14 +7,20 @@ cd "$(git rev-parse --show-toplevel)"
 
 # 変更されたファイルを取得
 all_staged_files=$(git diff --cached --name-only --diff-filter=ACM)
-js_ts_files=$(echo "$all_staged_files" | grep -E '\.tsx?$|\.jsx?$')
-rules_md_files=$(echo "$all_staged_files" | grep -E '^rules/.+\.md$')
+js_ts_files=$(echo "$all_staged_files" | grep -E '\.tsx?$|\.jsx?$' || true)
+rules_md_files=$(echo "$all_staged_files" | grep -E '^rules/.+\.md$' || true)
 
 # JS/TSファイルが存在する場合、lint と format を実行
 if [ ! -z "$js_ts_files" ]; then
   echo "🧹 ESLint実行中..."
-  pnpm lint
-  lint_result=$?
+  # lint-stagedを優先使用
+  if [ -f "lint-staged.config.js" ]; then
+    pnpm lint-staged
+    lint_result=$?
+  else
+    pnpm lint
+    lint_result=$?
+  fi
 
   if [ $lint_result -ne 0 ]; then
     echo "❌ Lintエラーがあります。修正してから再度 git add を実行してください。"
@@ -83,11 +89,8 @@ fi
 
 # 関連テスト実行（高速モード）
 echo "🧪 変更関連テスト実行中..."
-if grep -q "\"test:changed\"" package.json; then
-  pnpm test:changed
-else
-  pnpm vitest related $js_ts_files --passWithNoTests --run
-fi
+# 変更されたファイルに対するテスト実行(効率的な方法)
+NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest related --run $(git diff --name-only --staged | grep -E '\.tsx?$|\.jsx?$') --passWithNoTests
 test_exit_code=$?
 
 if [ $test_exit_code -ne 0 ]; then
