@@ -1,0 +1,124 @@
+name: 本番環境へのプロモーション
+
+# 開発環境から本番環境へのプロモーション（手動実行のみ）
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'プロモーション元ブランチ'
+        required: true
+        default: 'develop'
+        type: string
+      confirm:
+        description: '本番環境へのプロモーションを確認しますか？'
+        required: true
+        default: 'no'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+
+jobs:
+  # 確認ステップ
+  confirm:
+    name: 本番プロモーション確認
+    runs-on: ubuntu-latest
+    # 明示的な確認が必要
+    if: github.event.inputs.confirm == 'yes'
+    steps:
+      - name: 確認
+        run: |
+          echo "本番環境へのプロモーションが確認されました。ソースブランチ: ${{ github.event.inputs.source_branch }}"
+
+  # テスト実行
+  test:
+    name: テスト実行
+    needs: [confirm]
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source_branch }}
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: リント実行
+        run: pnpm lint
+
+      - name: 型チェック
+        run: pnpm type-check
+
+      - name: ユニットテスト実行
+        run: pnpm test
+
+      - name: テストカバレッジチェック
+        run: pnpm test:coverage
+
+  # mainブランチへのマージ
+  merge:
+    name: mainへのマージ
+    needs: [test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Gitユーザー設定
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: ソースブランチのマージ
+        run: |
+          git fetch origin ${{ github.event.inputs.source_branch }}
+          git merge origin/${{ github.event.inputs.source_branch }} --no-ff -m "Promote ${{ github.event.inputs.source_branch }} to main"
+          git push origin main
+
+  # 本番環境へのデプロイ確認
+  deploy-confirmation:
+    name: デプロイ確認
+    needs: [merge]
+    runs-on: ubuntu-latest
+    steps:
+      - name: デプロイ確認
+        run: |
+          echo "mainブランチへのマージが完了しました。"
+          echo "本番環境CI/CDワークフローが自動的に実行されます。"
+          echo "ワークフロー実行状況を確認してください: ${{ github.server_url }}/${{ github.repository }}/actions"
+
+  # プロモーション通知
+  notify:
+    name: プロモーション通知
+    needs: [deploy-confirmation]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Slack通知
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: 本番環境プロモーション ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            ソースブランチ: ${{ github.event.inputs.source_branch }}
+            ターゲットブランチ: main
+            実行者: ${{ github.actor }}
+            ステータス: ${{ job.status }}

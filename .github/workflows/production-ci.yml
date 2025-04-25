@@ -1,0 +1,194 @@
+name: 本番環境 CI/CD
+
+# 本番環境向けワークフロー
+# 対象: mainブランチへのプッシュ・PR、または手動実行
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch: # 手動実行も可能
+
+# 実行の最適化（同時実行を防止）
+concurrency:
+  group: production-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ステップ1: テストと検証
+  lint-and-test:
+    name: 型チェック・リント・テスト
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: リント実行
+        run: pnpm lint
+
+      - name: 型チェック
+        run: pnpm type-check
+
+      - name: ユニットテスト実行
+        run: pnpm test
+
+      - name: テストカバレッジチェック
+        run: pnpm test:coverage
+
+      # PRの場合のみコメント追加
+      - name: テスト結果のコメント
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: coverage/lcov-report/index.html
+
+  # ステップ2: 本番環境向けビルド
+  build-production:
+    name: 本番環境ビルド
+    needs: [lint-and-test]
+    runs-on: ubuntu-latest
+
+    # プッシュまたは手動実行時のみビルド
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # ビルドキャッシュの活用
+      - name: Next.jsキャッシュのセットアップ
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+          key: ${{ runner.os }}-nextjs-production-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-production-${{ hashFiles('**/pnpm-lock.yaml') }}-
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # 本番環境固有の設定でビルド
+      # スラッシュの有無に注意（実際の設定に合わせる）
+      - name: 本番環境向けビルド
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_ENV: production
+          NEXT_PUBLIC_API_BASE_URL: /api
+          NEXT_PUBLIC_APP_URL: https://main.automationa-tools.pages.dev/
+
+      - name: ビルド成果物の保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-production
+          path: out/
+          retention-days: 1 # ビルド成果物は短期間のみ保持
+
+  # ステップ3: 本番環境へのデプロイ
+  deploy-production:
+    name: 本番環境デプロイ
+    needs: [build-production]
+    runs-on: ubuntu-latest
+    environment: production # GitHub環境を指定（環境変数・シークレットのスコープ）
+
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # ビルド成果物を再利用
+      - name: ビルド成果物のダウンロード
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-production
+          path: out/
+
+      - name: 依存関係のインストール（本番用）
+        run: pnpm install --prod
+
+      # 本番環境へのデプロイ
+      - name: Cloudflare Pagesへのデプロイ
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy out --project-name=automationa-tools --branch=main
+
+      - name: デプロイURLの出力
+        run: echo "✅ 本番環境がデプロイされました： ${{ steps.deploy.outputs.url }}"
+
+      # デプロイ後の自動検証（より厳格）
+      - name: 本番スモークテスト
+        run: |
+          # 基本的な疎通確認
+          curl -sSf "https://main.automationa-tools.pages.dev/" > /dev/null
+
+          # ステータスコード確認
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://main.automationa-tools.pages.dev/")
+          if [ "$STATUS_CODE" -ne 200 ]; then
+            echo "エラー: ステータスコードが200ではありません: $STATUS_CODE"
+            exit 1
+          fi
+
+          echo "本番スモークテスト成功"
+
+      # 通知
+      - name: 検証結果の通知
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: 本番デプロイ検証 ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: 本番
+            URL: https://main.automationa-tools.pages.dev/
+            ステータス: ${{ job.status }}

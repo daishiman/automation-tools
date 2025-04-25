@@ -1,0 +1,97 @@
+name: E2Eテスト実行
+
+# 手動または特定の条件で実行
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'テスト対象環境'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - production
+  pull_request:
+    types: [labeled]
+    branches: [main]
+
+jobs:
+  e2e-tests:
+    # PRに 'needs-e2e-tests' ラベルが付いた場合、または手動実行時
+    if: github.event.inputs.environment != null || contains(github.event.pull_request.labels.*.name, 'needs-e2e-tests')
+    name: E2Eテスト
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # Playwrightのセットアップ
+      - name: Playwrightのインストール
+        run: pnpm exec playwright install --with-deps
+
+      # テスト環境の決定
+      - name: テスト環境URLの設定
+        id: set-url
+        run: |
+          if [[ "${{ github.event.inputs.environment }}" == "production" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "TEST_URL=https://main.automationa-tools.pages.dev/" >> $GITHUB_ENV
+            echo "ENVIRONMENT=production" >> $GITHUB_ENV
+          else
+            echo "TEST_URL=https://512dca79.automationa-tools.pages.dev" >> $GITHUB_ENV
+            echo "ENVIRONMENT=development" >> $GITHUB_ENV
+          fi
+
+      # E2Eテストの実行
+      - name: E2Eテスト実行
+        run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: ${{ env.TEST_URL }}
+
+      # テスト結果を保存
+      - name: テスト結果の保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      # PRコメントの追加
+      - name: テスト結果サマリー
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            try {
+              const summary = fs.readFileSync('playwright-report/summary.md', 'utf8');
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: `## E2Eテスト結果 (${{ env.ENVIRONMENT }})
+
+                ${summary}
+
+                [詳細レポートはこちら](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              });
+            } catch (error) {
+              console.error('テスト結果ファイルの読み取りに失敗しました:', error);
+            }

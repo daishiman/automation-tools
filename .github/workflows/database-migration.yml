@@ -1,0 +1,77 @@
+name: データベースマイグレーション
+
+# 手動または特定のファイル変更時に実行
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '適用環境（development/production）'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - production
+  push:
+    branches: [develop, main]
+    paths:
+      - 'db/migrations/**'
+
+jobs:
+  migrate:
+    name: マイグレーション実行
+    runs-on: ubuntu-latest
+    # 指定された環境に基づいて実行環境を設定
+    environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'development') }}
+
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # マイグレーション前のバックアップ
+      - name: データベースバックアップ
+        run: pnpm db:backup
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
+
+      # マイグレーション実行
+      - name: マイグレーション適用
+        run: pnpm db:migrate
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+
+      # 結果通知
+      - name: マイグレーション結果通知
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: データベースマイグレーション ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: ${{ vars.ENVIRONMENT }}
+            データベース: ${{ vars.D1_DATABASE_NAME }}
+            ステータス: ${{ job.status }}

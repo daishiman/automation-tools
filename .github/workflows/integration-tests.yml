@@ -1,0 +1,189 @@
+name: 統合テスト実行
+
+# 統合テスト（複数コンポーネント・APIなどの連携テスト）を実行するワークフロー
+on:
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch: # 手動実行も可能
+
+# 実行の最適化（同時実行を防止）
+concurrency:
+  group: integration-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-tests:
+    name: API統合テスト
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # API関連テストの実行
+      - name: API統合テスト実行
+        run: pnpm test:api
+        env:
+          # テスト用環境変数
+          TEST_API_URL: http://localhost:3000/api
+          NEXT_PUBLIC_API_BASE_URL: /api
+
+      # テスト結果の保存
+      - name: API統合テスト結果の保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-test-results
+          path: api-test-results/
+          retention-days: 7
+
+  # ページと連携コンポーネントの統合テスト
+  page-integration:
+    name: ページ統合テスト
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # モックサーバーのセットアップ
+      - name: モックサーバーのセットアップ
+        run: |
+          echo "モックサーバーを起動中..."
+          pnpm mock-server &
+          echo "サーバー起動を待機中..."
+          sleep 5
+
+      # ページ統合テストの実行
+      - name: ページ統合テスト実行
+        run: pnpm test:integration
+        env:
+          # テスト用環境変数
+          TEST_MOCK_API_URL: http://localhost:8080
+
+      # テスト結果の保存
+      - name: ページ統合テスト結果の保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: integration-test-results/
+          retention-days: 7
+
+  # データベース連携テスト
+  db-integration:
+    name: データベース統合テスト
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # テスト用データベースのセットアップ
+      - name: テスト用DBのセットアップ
+        run: |
+          # テスト用のSQLiteデータベースをセットアップ
+          echo "テスト用データベースを初期化しています..."
+          pnpm db:test:setup
+
+      # DBアクセスを含む統合テストの実行
+      - name: DB統合テスト実行
+        run: pnpm test:db
+        env:
+          # テスト用環境変数
+          DATABASE_URL: "sqlite::memory:"
+
+      # テスト結果の保存
+      - name: DB統合テスト結果の保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-test-results
+          path: db-test-results/
+          retention-days: 7
+
+  # PRのコメント追加
+  test-report:
+    name: 統合テスト結果レポート
+    needs: [api-tests, page-integration, db-integration]
+    if: github.event_name == 'pull_request' && always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: テスト結果を集計
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const apiStatus = "${{ needs.api-tests.result }}";
+            const pageStatus = "${{ needs.page-integration.result }}";
+            const dbStatus = "${{ needs.db-integration.result }}";
+
+            const statusEmoji = (status) => {
+              if (status === 'success') return '✅';
+              if (status === 'failure') return '❌';
+              return '⚠️';
+            };
+
+            const message = `## 統合テスト結果
+
+            | テスト種別 | 結果 |
+            |------------|------|
+            | API統合テスト | ${statusEmoji(apiStatus)} ${apiStatus} |
+            | ページ統合テスト | ${statusEmoji(pageStatus)} ${pageStatus} |
+            | DB統合テスト | ${statusEmoji(dbStatus)} ${dbStatus} |
+
+            詳細は[こちらのワークフロー実行結果](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})を確認してください。`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });

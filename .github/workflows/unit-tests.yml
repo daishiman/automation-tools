@@ -1,0 +1,153 @@
+name: 単体テスト実行
+
+# 単体テスト（ユニットテスト）を実行するワークフロー
+on:
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch: # 手動実行も可能
+
+# 実行の最適化（同時実行を防止）
+concurrency:
+  group: unit-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  jest:
+    name: Jestテスト実行
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # テストの実行
+      - name: テスト実行
+        run: pnpm test
+
+      # JUnitレポート形式のテスト結果を保存
+      - name: テスト結果の保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: junit.xml
+          retention-days: 7
+
+  coverage:
+    name: テストカバレッジ計測
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # カバレッジを含めたテスト実行
+      - name: カバレッジ計測
+        run: pnpm test:coverage
+
+      # カバレッジレポートの保存
+      - name: カバレッジレポートの保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+      # PRの場合、カバレッジレポートをコメント
+      - name: カバレッジレポートのコメント
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          recreate: true
+          path: coverage/lcov-report/index.html
+
+      # カバレッジ閾値のチェック
+      - name: カバレッジ閾値チェック
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
+          echo "総行カバレッジ: $COVERAGE%"
+
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "⚠️ テストカバレッジが目標値（80%）を下回っています"
+            echo "現在のカバレッジ: $COVERAGE%"
+            # PRの場合は警告のみ（エラーにはしない）
+            if [ "${{ github.event_name }}" != "pull_request" ]; then
+              exit 1
+            fi
+          else
+            echo "✅ テストカバレッジが目標値を満たしています"
+          fi
+
+  cross-browser:
+    name: クロスブラウザテスト
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # Playwrightのインストール
+      - name: Playwrightのセットアップ
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
+
+      # コンポーネントテストの実行（複数ブラウザ）
+      - name: コンポーネントテスト実行
+        run: pnpm test:components
+
+      # テスト結果の保存
+      - name: テスト結果の保存
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7

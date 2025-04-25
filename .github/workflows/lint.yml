@@ -1,0 +1,148 @@
+name: コード品質チェック（リント）
+
+# コードの品質チェック（リント）を行うワークフロー
+on:
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  workflow_dispatch: # 手動実行も可能
+
+# 実行の最適化（同時実行を防止）
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  eslint:
+    name: ESLint実行
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # ESLint実行
+      - name: ESLint実行
+        run: pnpm lint
+
+      # PRの場合にレポートをコメント
+      - name: ESLintレポートのコメント
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              const fs = require('fs');
+              if (fs.existsSync('eslint_report.json')) {
+                const eslintReport = JSON.parse(fs.readFileSync('eslint_report.json', 'utf8'));
+                const errorCount = eslintReport.reduce((sum, file) => sum + file.errorCount, 0);
+                const warningCount = eslintReport.reduce((sum, file) => sum + file.warningCount, 0);
+
+                const message = `## ESLint結果
+
+                - エラー: ${errorCount}
+                - 警告: ${warningCount}
+
+                ${errorCount > 0 ? '⚠️ ESLintエラーを修正してください' : '✅ ESLintエラーはありません'}`;
+
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: message
+                });
+              }
+            } catch (error) {
+              console.error('ESLintレポートの読み取りに失敗しました:', error);
+            }
+
+  type-check:
+    name: TypeScript型チェック
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # TypeScript型チェック実行
+      - name: 型チェック実行
+        run: pnpm type-check
+
+      # 型チェックの結果をPRにコメント
+      - name: 型チェック結果のコメント
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## TypeScript型チェック結果
+
+              ❌ 型チェックに失敗しました。
+
+              詳細は[こちらのログ](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})を確認してください。`
+            });
+
+  # tsconfig チェック（複数の設定が一致しているか確認）
+  tsconfig-check:
+    name: TSConfig整合性チェック
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      # tsconfig.jsonファイルの一貫性をチェック
+      - name: TSConfig整合性チェック
+        run: |
+          echo "TSConfigファイル一覧:"
+          find . -name "tsconfig*.json" -type f | sort
+
+          # 必須のコンパイラオプションが設定されているか確認
+          echo "必須設定のチェック:"
+          for config in $(find . -name "tsconfig*.json" -type f); do
+            echo "Checking $config..."
+            grep -q '"strict": true' $config || echo "⚠️ $config: strict mode not enabled"
+            grep -q '"noImplicitAny": true' $config || echo "⚠️ $config: noImplicitAny not enabled"
+          done
+
+          # エラーがあれば終了コード1を返す
+          if grep -q "⚠️" <<< "$(find . -name "tsconfig*.json" -type f)"; then
+            exit 1
+          fi
