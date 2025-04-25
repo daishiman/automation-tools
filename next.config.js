@@ -16,6 +16,6 @@ const nextConfig = {
   experimental: {
     // serverActionsはデフォルトで有効になったため削除
   },
-}
+};
 
-module.exports = nextConfig
+module.exports = nextConfig;

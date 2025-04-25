@@ -33,11 +33,11 @@ type MockResult = User | User[] | null;
 
 // UserRepositoryクラスをモック
 class UserRepository {
-  constructor(_d1: D1Database) {
+  constructor(_: D1Database) {
     // 実装なし - モック用
   }
 
-  async findById(_id: string): Promise<User | null> {
+  async findById(_: string): Promise<User | null> {
     // 配列が返される場合は最初の要素を返し、nullの場合はnullを返す
     if (Array.isArray(mockQueryResult)) {
       return mockQueryResult.length > 0 ? mockQueryResult[0] : null;
@@ -45,7 +45,7 @@ class UserRepository {
     return mockQueryResult;
   }
 
-  async findByEmail(_email: string): Promise<User | null> {
+  async findByEmail(_: string): Promise<User | null> {
     // 配列が返される場合は最初の要素を返し、nullの場合はnullを返す
     if (Array.isArray(mockQueryResult)) {
       return mockQueryResult.length > 0 ? mockQueryResult[0] : null;
@@ -53,7 +53,7 @@ class UserRepository {
     return mockQueryResult;
   }
 
-  async createUser(_userData: CreateUserData): Promise<User> {
+  async createUser(_: CreateUserData): Promise<User> {
     // このメソッドではユーザーが必ず返されるはず
     if (mockQueryResult === null) {
       throw new Error('モックデータが設定されていません');
@@ -70,7 +70,7 @@ class UserRepository {
     return mockQueryResult;
   }
 
-  async update(_id: string, _data: UpdateUserData): Promise<User | null> {
+  async update(userId: string, updateData: UpdateUserData): Promise<User | null> {
     // 配列が返される場合は最初の要素を返し、nullの場合はnullを返す
     if (Array.isArray(mockQueryResult)) {
       return mockQueryResult.length > 0 ? mockQueryResult[0] : null;
@@ -78,7 +78,7 @@ class UserRepository {
     return mockQueryResult;
   }
 
-  async delete(_id: string): Promise<boolean> {
+  async delete(_: string): Promise<boolean> {
     return !!mockQueryResult;
   }
 
@@ -215,47 +215,38 @@ describe('UserRepository', () => {
   });
 
   describe('update', () => {
-    it('ユーザー情報を更新して返すべき', async () => {
-      // モック結果のセットアップ
-      const updatedUser: User = {
-        id: 'test-id',
-        name: '更新後ユーザー',
+    it('指定したidに一致するユーザーを更新して返すこと', async () => {
+      // arrange
+      const mockUser: User = {
+        id: '1',
+        name: 'UpdatedUser',
         email: 'updated@example.com',
-        password: 'hashed-password',
-        role: 'admin',
+        password: 'password123',
+        role: 'user',
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      mockQueryResult = updatedUser;
+      mockQueryResult = mockUser;
 
-      // 更新データ
-      const updateData: UpdateUserData = {
-        name: '更新後ユーザー',
-        email: 'updated@example.com',
-        role: 'admin',
-      };
+      // act
+      const userId = '1';
+      const updateData: UpdateUserData = { name: 'UpdatedUser' };
+      const result = await userRepo.update(userId, updateData);
 
-      // テスト対象のメソッド実行
-      const result = await userRepo.update('test-id', updateData);
-
-      // 結果の検証
-      expect(result).toEqual(updatedUser);
+      // assert
+      expect(result).toEqual(mockUser);
     });
 
-    it('更新対象のユーザーが見つからない場合はnullを返すべき', async () => {
-      // モック結果をnullに設定
+    it('指定したidに一致するユーザーが存在しない場合nullを返すこと', async () => {
+      // arrange
       mockQueryResult = null;
 
-      // 更新データ
-      const updateData: UpdateUserData = {
-        name: '更新後ユーザー',
-        email: 'updated@example.com',
-      };
+      // act
+      const userId = '999';
+      const updateData: UpdateUserData = { name: 'NonExistentUser' };
+      const result = await userRepo.update(userId, updateData);
 
-      // テスト対象のメソッド実行
-      const result = await userRepo.update('non-existent-id', updateData);
-
-      // 結果の検証
+      // assert
       expect(result).toBeNull();
     });
   });

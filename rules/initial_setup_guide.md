@@ -23,6 +23,7 @@
 ### Node.js
 
 - **必須バージョン**: Node.js v18.18.0以上（v20.10.0推奨）
+
   ```bash
   # nvmを使用した場合（推奨）
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
@@ -54,6 +55,7 @@
 ### パッケージマネージャー
 
 - **pnpm v8.10.0以上をインストール**
+
   ```bash
   # npmを使用してグローバルインストール
   npm install -g pnpm@latest
@@ -71,10 +73,12 @@
 ### エディタとプラグイン
 
 - **Visual Studio Code 最新版をインストール**
+
   - [VSCode公式サイト](https://code.visualstudio.com/)からダウンロード
   - バージョン: 1.84.0以上を推奨
 
 - **必須拡張機能**:
+
   ```bash
   # 以下のコマンドをターミナルで実行して一括インストール
   code --install-extension dbaeumer.vscode-eslint
@@ -86,6 +90,7 @@
   ```
 
   または手動で以下をインストール:
+
   - ESLint (`dbaeumer.vscode-eslint`)
   - Prettier (`esbenp.prettier-vscode`)
   - Tailwind CSS IntelliSense (`bradlc.vscode-tailwindcss`)
@@ -96,6 +101,7 @@
 - **VSCode設定ファイル**
 
   プロジェクトルートに`.vscode/settings.json`を作成:
+
   ```bash
   mkdir -p .vscode
   cat > .vscode/settings.json << 'EOL'
@@ -118,6 +124,7 @@
 ### Git設定
 
 - **Git 2.40.0以上をインストール**
+
   ```bash
   # バージョン確認
   git --version  # git version 2.40.0以上
@@ -134,6 +141,7 @@
   ```
 
 - **Gitの基本設定**
+
   ```bash
   git config --global user.name "あなたの名前"
   git config --global user.email "あなたのメールアドレス"
@@ -319,6 +327,7 @@ EOL
 3. 「Connect to Git」を選択し、GitHubアカウントと連携
 
 > **注意**: Cloudflareの無料枠には以下の制限があります：
+>
 > - Pages: 無制限サイト、月間500ビルド、月間100GBネットワーク転送
 > - Workers: 月間10万リクエスト、CPU時間制限あり
 > - D1: 5GB保存、月間500万クエリ
@@ -889,7 +898,7 @@ find src -type d -print | sort
 
 ### 基本ファイルの作成
 
-```bash
+````bash
 # エラーハンドリング基本クラス
 cat > src/lib/errors/app-error.ts << 'EOL'
 export class AppError extends Error {
@@ -1127,7 +1136,7 @@ cp .env.sample .env.local
 
 # 開発サーバーの起動
 pnpm dev
-```
+````
 
 ## 開発ワークフロー
 
@@ -1167,44 +1176,54 @@ MIT
 EOL
 
 # .gitignoreの更新
+
 cat >> .gitignore << 'EOL'
+
 # Cloudflare
+
 .wrangler/
 .dev.vars
 
 # Node.js
+
 node_modules/
 
 # Next.js
+
 .next/
 out/
 
 # 環境変数
+
 .env
-.env.*
+.env.\*
 !.env.example
 !.env.sample
 !.env.test
 !.env.e2e
 
 # テスト
+
 coverage/
 test-results/
 playwright-report/
 
 # IDEとエディタ
-.vscode/*
+
+.vscode/_
 !.vscode/settings.json
 !.vscode/extensions.json
 .idea/
-*.swp
-*.swo
+_.swp
+\*.swo
 
 # OS固有
+
 .DS_Store
 Thumbs.db
 EOL
-```
+
+````
 
 ## 8. CI/CD設定
 
@@ -1266,11 +1285,12 @@ module.exports = {
   ]
 };
 EOL
-```
+````
 
 上記の設定により、以下のような自動化が行われます：
 
 - **git commit 時**:
+
   - コミット対象のファイルに対してESLintによるリントチェック
   - Prettierによるコードフォーマット
   - 修正後、問題なければコミット実行
@@ -1409,6 +1429,7 @@ cat .github/workflows/ci.yml
 GitHub Actionsでは以下の自動化が行われます：
 
 - **プッシュ・PRの作成時**：
+
   - リントと型チェックのジョブ実行
   - ユニットテストの実行（カバレッジレポートの生成）
   - E2Eテストの実行（Playwrightによるブラウザテスト）
@@ -1668,12 +1689,14 @@ git push origin develop
 以下の項目を確認して、開発準備が整っていることを確認してください：
 
 ✅ **基本環境**
+
 - [ ] Node.js v18.18.0以上（推奨：v20.10.0）が正しくインストールされている
 - [ ] pnpm v8.10.0以上が正しくインストールされている
 - [ ] Git 2.40.0以上がインストールされている
 - [ ] VSCodeと必要な拡張機能がインストールされている
 
 ✅ **プロジェクト設定**
+
 - [ ] リポジトリが正しくクローンされている
 - [ ] 依存関係がすべてインストールされている (`pnpm install`の実行)
 - [ ] `.env.local`ファイルが作成され、必要な環境変数が設定されている
@@ -1682,6 +1705,7 @@ git push origin develop
 - [ ] `pnpm lint`でリントが正常に実行される
 
 ✅ **Cloudflare設定**
+
 - [ ] Cloudflareアカウントが作成され、アクセス可能である
 - [ ] D1データベースが正しく作成されている
 - [ ] KVネームスペースが正しく作成されている
@@ -1689,11 +1713,13 @@ git push origin develop
 - [ ] wrangler.tomlが正しく設定されている
 
 ✅ **リポジトリ設定**
+
 - [ ] mainブランチが保護されている（プルリクエスト必須）
 - [ ] GitHub Actionsのワークフローが設定されている
 - [ ] GitHub Secretsに必要な値が設定されている(CF_API_TOKEN, CF_ACCOUNT_ID)
 
 ✅ **ディレクトリ構造**
+
 - [ ] すべての必要なディレクトリが作成されている
 - [ ] 基本的なファイル（エラーハンドラなど）が作成されている
 - [ ] Next.jsのApp Router構造が正しく設定されている
@@ -1707,6 +1733,7 @@ git push origin develop
 **症状**: パッケージのインストールエラーやNext.jsの起動エラー
 
 **解決方法**:
+
 ```bash
 # Node.jsバージョンの確認
 node -v
@@ -1725,6 +1752,7 @@ pnpm install
 **症状**: `command not found: pnpm`エラーが表示される
 
 **解決方法**:
+
 ```bash
 # グローバルにpnpmをインストール
 npm install -g pnpm
@@ -1741,11 +1769,13 @@ export PATH="$HOME/.pnpm/bin:$PATH"
 **症状**: Cloudflareリソース作成時の認証エラー
 
 **解決方法**:
+
 1. [Cloudflareダッシュボード](https://dash.cloudflare.com/) > プロフィール > APIトークン へ移動
 2. 「APIトークンの作成」をクリック
 3. 「編集者」テンプレートを選択
 4. アカウントリソースとD1、KV、R2の権限を追加
 5. トークンを生成し、wranglerで再度ログイン：
+
 ```bash
 wrangler login
 ```
@@ -1755,6 +1785,7 @@ wrangler login
 **症状**: 型エラーやTSコンパイルエラー
 
 **解決方法**:
+
 ```bash
 # TypeScriptキャッシュをクリア
 rm -rf .next
@@ -1771,6 +1802,7 @@ pnpm type-check
 **症状**: 開発サーバーが起動しない、または異常終了する
 
 **解決方法**:
+
 ```bash
 # ポートが使用中の場合は別のポートを使用
 pnpm dev -- -p 3001
@@ -1785,6 +1817,7 @@ pnpm dev
 **症状**: フォーマットやリントエラーが表示される
 
 **解決方法**:
+
 ```bash
 # ESLintの実行
 pnpm lint
@@ -2095,15 +2128,18 @@ EOL
 この設定により、以下のようにテストカバレッジ要件が改善されます：
 
 - **段階的なカバレッジ目標**:
+
   - フェーズ1 (開発初期): 60%
   - フェーズ2 (開発中期): 70%
   - フェーズ3 (開発後期/本番): 80%
 
 - **環境に応じた柔軟な適用**:
+
   - 環境変数 `COVERAGE_PHASE` で簡単に切り替え可能
   - 便利なスクリプト: `pnpm test:coverage:phase1`, `phase2`, `phase3`
 
 - **エラーハンドリングの強化**:
+
   - ファイル存在チェックとわかりやすいエラーメッセージ
   - カバレッジ計算中の例外処理
   - 改善のためのヒント表示
@@ -2279,3 +2315,4 @@ cat > src/lib/config/env.ts << 'EOL'
 /**
  * 環境変数を安全に取得するユーティリティ
  *
+```

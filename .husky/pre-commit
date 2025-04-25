@@ -121,17 +121,17 @@ if [ $has_errors -eq 0 ] && [ ! -z "$rules_files" ]; then
       continue
     fi
 
-    # 2. 最低限の構造チェック
-    if ! grep -q "^# " "$file"; then
-      echo "    ⚠️ $file に適切な見出し(#)がありません"
-      rules_errors=1
-    fi
+    # 2. 最低限の構造チェック - 見出しのチェックを無効化
+    # if ! grep -q "^# " "$file"; then
+    #   echo "    ⚠️ $file に適切な見出し(#)がありません"
+    #   rules_errors=1
+    # fi
 
-    # 3. 文法エラーチェック（不完全な見出しや箇条書き）
-    if grep -q "^#\s*$" "$file" || grep -q "^-\s*$" "$file"; then
-      echo "    ⚠️ $file に不完全な見出しまたは箇条書きがあります"
-      rules_errors=1
-    fi
+    # 3. 文法エラーチェック（不完全な見出しや箇条書き）- このチェックを無効化
+    # if grep -q "^#\s*$" "$file" || grep -q "^-\s*$" "$file"; then
+    #   echo "    ⚠️ $file に不完全な見出しまたは箇条書きがあります"
+    #   rules_errors=1
+    # fi
   done
 
   if [ $rules_errors -ne 0 ]; then

@@ -27,14 +27,14 @@
 
 ### 基本技術スタック（確定）
 
-| 項目 | 選定技術 | 選定理由 |
-|-----|---------|---------|
-| **プログラミング言語** | TypeScript 5.3.2+ | 静的型付けによる安全性、リファクタリング容易性、開発時エラー検出能力 |
-| **フレームワーク** | Next.js 14.0.3+ (App Router) | フロント/バックエンド統合、エッジ対応、サーバーコンポーネント |
-| **アーキテクチャパターン** | クリーンアーキテクチャ + DDD | 明確な関心の分離、ドメインロジックの独立性、変更の局所化 |
-| **レイヤー構造** | ドメイン・インフラ・インターフェース | 責任の明確な分離と一方向の依存関係 |
-| **AIフレームワーク** | Mastra 1.0+ | エージェントとワークフローベースの柔軟なAI活用、アシスタントアプリ構築 |
-| **Node.js** | v18.18.0以上（v20.10.0推奨） | 長期サポート、安定性、最新機能サポート |
+| 項目                       | 選定技術                             | 選定理由                                                               |
+| -------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| **プログラミング言語**     | TypeScript 5.3.2+                    | 静的型付けによる安全性、リファクタリング容易性、開発時エラー検出能力   |
+| **フレームワーク**         | Next.js 14.0.3+ (App Router)         | フロント/バックエンド統合、エッジ対応、サーバーコンポーネント          |
+| **アーキテクチャパターン** | クリーンアーキテクチャ + DDD         | 明確な関心の分離、ドメインロジックの独立性、変更の局所化               |
+| **レイヤー構造**           | ドメイン・インフラ・インターフェース | 責任の明確な分離と一方向の依存関係                                     |
+| **AIフレームワーク**       | Mastra 1.0+                          | エージェントとワークフローベースの柔軟なAI活用、アシスタントアプリ構築 |
+| **Node.js**                | v18.18.0以上（v20.10.0推奨）         | 長期サポート、安定性、最新機能サポート                                 |
 
 ### アーキテクチャの核となる設計原則
 
@@ -63,27 +63,29 @@
 
 ### クラウドプラットフォーム（確定: Cloudflare）
 
-| 項目 | 選定技術 | 無料枠制限 | 選定理由 |
-|-----|---------|-----------|---------|
-| **ホスティング** | Cloudflare Pages | 無制限サイト、月500ビルド、月100GB帯域幅 | グローバルCDN、CI/CD統合、無料枠の充実 |
-| **サーバーレス処理** | Cloudflare Workers | 月10万リクエスト | エッジでの低レイテンシー処理、D1との統合 |
-| **CI/CD** | GitHub Actions | 月2,000分の無料実行時間 | 広く採用されている、柔軟なワークフロー設定 |
-| **モニタリング** | Cloudflare Analytics | 基本的な分析は無料 | Cloudflareエコシステムとの統合、簡単設定 |
+| 項目                 | 選定技術             | 無料枠制限                               | 選定理由                                   |
+| -------------------- | -------------------- | ---------------------------------------- | ------------------------------------------ |
+| **ホスティング**     | Cloudflare Pages     | 無制限サイト、月500ビルド、月100GB帯域幅 | グローバルCDN、CI/CD統合、無料枠の充実     |
+| **サーバーレス処理** | Cloudflare Workers   | 月10万リクエスト                         | エッジでの低レイテンシー処理、D1との統合   |
+| **CI/CD**            | GitHub Actions       | 月2,000分の無料実行時間                  | 広く採用されている、柔軟なワークフロー設定 |
+| **モニタリング**     | Cloudflare Analytics | 基本的な分析は無料                       | Cloudflareエコシステムとの統合、簡単設定   |
 
 ### データストレージ（確定）
 
-| 項目 | 選定技術 | 無料枠制限 | 選定理由 |
-|-----|---------|-----------|---------|
-| **メインデータベース** | Cloudflare D1 | 5GB/月500万クエリ | SQLite互換、Workersとの最適化された接続 |
-| **キャッシュ** | Cloudflare KV | 1GB/日10万読取、日1000書込 | 高速読み取り、グローバル分散、Workers統合 |
-| **ファイルストレージ** | Cloudflare R2 | 10GB/月無料 | S3互換API、エッジからの低レイテンシーアクセス |
-| **ORM** | Drizzle ORM | - | D1に最適化、軽量、SQLライクな構文、型安全性 |
-| **ベクトルストア** | Vectorize | 無料枠あり | Cloudflare製、RAG実装のための埋め込み保存 |
+| 項目                   | 選定技術      | 無料枠制限                 | 選定理由                                      |
+| ---------------------- | ------------- | -------------------------- | --------------------------------------------- |
+| **メインデータベース** | Cloudflare D1 | 5GB/月500万クエリ          | SQLite互換、Workersとの最適化された接続       |
+| **キャッシュ**         | Cloudflare KV | 1GB/日10万読取、日1000書込 | 高速読み取り、グローバル分散、Workers統合     |
+| **ファイルストレージ** | Cloudflare R2 | 10GB/月無料                | S3互換API、エッジからの低レイテンシーアクセス |
+| **ORM**                | Drizzle ORM   | -                          | D1に最適化、軽量、SQLライクな構文、型安全性   |
+| **ベクトルストア**     | Vectorize     | 無料枠あり                 | Cloudflare製、RAG実装のための埋め込み保存     |
 
 ### スケーリング戦略（確定）
 
 **段階的アプローチ**:
+
 1. **初期フェーズ (0-500万クエリ/月)**:
+
    - D1の最適化（インデックス、効率的なクエリ）
    - KVによるホットデータのキャッシュ
    - Mastraの処理の単純化と最適化
@@ -153,13 +155,13 @@ export class DrizzleUserRepository implements UserRepository {
 
 ### 選定アーキテクチャ（確定）
 
-| 項目 | 選定パターン | 選定理由 |
-|-----|------------|---------|
-| **APIアーキテクチャ** | REST | シンプルさ、標準的な手法、広い理解 |
-| **データアクセス** | リポジトリパターン | データソース抽象化、実装の交換容易性 |
-| **クエリ構築** | クエリビルダー | 複雑なクエリの構築と再利用性 |
-| **ビジネスロジック** | ドメインサービス | ドメインロジックの集約とテスト容易性 |
-| **エラーハンドリング** | 統合エラー処理 | 一貫したエラーレスポンス形式 |
+| 項目                   | 選定パターン       | 選定理由                             |
+| ---------------------- | ------------------ | ------------------------------------ |
+| **APIアーキテクチャ**  | REST               | シンプルさ、標準的な手法、広い理解   |
+| **データアクセス**     | リポジトリパターン | データソース抽象化、実装の交換容易性 |
+| **クエリ構築**         | クエリビルダー     | 複雑なクエリの構築と再利用性         |
+| **ビジネスロジック**   | ドメインサービス   | ドメインロジックの集約とテスト容易性 |
+| **エラーハンドリング** | 統合エラー処理     | 一貫したエラーレスポンス形式         |
 
 ### APIルート設計
 
@@ -171,10 +173,7 @@ import { getUserUseCase } from '@/domain/users/usecases';
 import { NotFoundError, ValidationError, AuthError } from '@/lib/errors';
 import { handleApiError } from '@/lib/api/error-handler';
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
     // 依存性注入コンテナからユースケースを解決
     const useCase = container.resolve(getUserUseCase);
@@ -203,8 +202,8 @@ export function handleApiError(error: unknown): NextResponse {
         error: {
           code: error.code,
           message: error.message,
-          details: error.details
-        }
+          details: error.details,
+        },
       },
       { status: 400 }
     );
@@ -230,8 +229,8 @@ export function handleApiError(error: unknown): NextResponse {
     {
       error: {
         code: 'INTERNAL_SERVER_ERROR',
-        message: '内部サーバーエラーが発生しました'
-      }
+        message: '内部サーバーエラーが発生しました',
+      },
     },
     { status: 500 }
   );
@@ -242,19 +241,20 @@ export function handleApiError(error: unknown): NextResponse {
 
 ### 選定技術（確定）
 
-| 項目 | 選定技術 | 選定理由 |
-|-----|---------|---------|
-| **UIフレームワーク** | React (Next.js) | サーバーコンポーネント、高い生産性 |
-| **スタイリング** | TailwindCSS | ユーティリティファースト、柔軟なカスタマイズ |
-| **UIコンポーネント** | shadcn/ui | コピー可能コンポーネント、TailwindCSS統合 |
-| **状態管理** | Zustand | シンプルなAPI、最小限のボイラープレート |
-| **データフェッチ** | TanStack Query | サーバー状態管理、エラーハンドリング |
-| **フォーム管理** | React Hook Form + Zod | パフォーマンス、型安全なバリデーション |
-| **AI連携** | Mastra | エージェント・ワークフローによるAI活用 |
+| 項目                 | 選定技術              | 選定理由                                     |
+| -------------------- | --------------------- | -------------------------------------------- |
+| **UIフレームワーク** | React (Next.js)       | サーバーコンポーネント、高い生産性           |
+| **スタイリング**     | TailwindCSS           | ユーティリティファースト、柔軟なカスタマイズ |
+| **UIコンポーネント** | shadcn/ui             | コピー可能コンポーネント、TailwindCSS統合    |
+| **状態管理**         | Zustand               | シンプルなAPI、最小限のボイラープレート      |
+| **データフェッチ**   | TanStack Query        | サーバー状態管理、エラーハンドリング         |
+| **フォーム管理**     | React Hook Form + Zod | パフォーマンス、型安全なバリデーション       |
+| **AI連携**           | Mastra                | エージェント・ワークフローによるAI活用       |
 
 ### コンポーネント設計原則
 
 1. **アトミックデザイン**: 再利用可能な小さなコンポーネントからの構築
+
    - 原子（Atoms）: ボタン、入力フィールドなどの基本要素
    - 分子（Molecules）: 複数の原子を組み合わせた機能単位
    - 有機体（Organisms）: 分子の組み合わせによる複雑な機能ブロック
@@ -262,18 +262,21 @@ export function handleApiError(error: unknown): NextResponse {
    - ページ: 実際のコンテンツを持つビュー
 
 2. **コンポジション優先**: 継承よりもコンポジション
+
    - 単一責任の小さなコンポーネント
    - カスタマイズはプロップスを通じて実現
    - 高階コンポーネントの適切な活用
    - コンテキストの限定的な使用
 
 3. **関心の分離**: プレゼンテーションとロジックの分離
+
    - 表示ロジックと状態管理の明確な分離
    - カスタムフックによるロジックの抽出
    - サーバーコンポーネントとクライアントコンポーネントの適切な分割
    - データフェッチングの責任範囲の明確化
 
 4. **明示的なプロップス**: 明確なインターフェース定義
+
    - TypeScriptによる型定義
    - デフォルト値の適切な設定
    - 必須プロップスの明示
@@ -587,12 +590,12 @@ UI層 (app/, components/) → Hooks層 (hooks/) → ドメイン層 (domain/) �
 
 ### JWT + Cloudflare Workers KV（確定）
 
-| 機能 | 実装アプローチ | メリット |
-|------|--------------|---------|
-| **認証方式** | JWT + KV | Cloudflareエコシステムとの統合 |
-| **トークン管理** | セッション + リフレッシュトークン | セキュリティとUX向上 |
-| **権限管理** | ロールベース | シンプルで拡張性のある権限管理 |
-| **ミドルウェア** | Edge Middleware | すべてのルートで一貫した認証チェック |
+| 機能             | 実装アプローチ                    | メリット                             |
+| ---------------- | --------------------------------- | ------------------------------------ |
+| **認証方式**     | JWT + KV                          | Cloudflareエコシステムとの統合       |
+| **トークン管理** | セッション + リフレッシュトークン | セキュリティとUX向上                 |
+| **権限管理**     | ロールベース                      | シンプルで拡張性のある権限管理       |
+| **ミドルウェア** | Edge Middleware                   | すべてのルートで一貫した認証チェック |
 
 ### 実装ガイドライン
 
@@ -623,6 +626,7 @@ UI層 (app/, components/) → Hooks層 (hooks/) → ドメイン層 (domain/) �
 ### エラー管理戦略（確定）
 
 1. **階層化されたエラー**:
+
    - 基本エラークラス（`AppError`）
      - 共通属性: コード、メッセージ、詳細、スタックトレース
      - 一貫したエラー構造の基盤
@@ -636,6 +640,7 @@ UI層 (app/, components/) → Hooks層 (hooks/) → ドメイン層 (domain/) �
      - APIレスポンス形式の標準化
 
 2. **統一されたエラーレスポンス形式**:
+
 ```json
 {
   "error": {
@@ -647,6 +652,7 @@ UI層 (app/, components/) → Hooks層 (hooks/) → ドメイン層 (domain/) �
 ```
 
 3. **構造化ログ記録**:
+
    - JSONフォーマット
      - タイムスタンプ、ログレベル、サービス名などの標準フィールド
      - 構造化されたエラー情報の保存
@@ -683,6 +689,7 @@ UI層 (app/, components/) → Hooks層 (hooks/) → ドメイン層 (domain/) �
 データフローの明確な分離:
 
 1. **クライアント状態 (Zustand)**:
+
    - UIの状態（モーダル、展開状態など）
      - 一時的なUI状態の管理
      - コンポーネント間での状態共有
@@ -697,6 +704,7 @@ UI層 (app/, components/) → Hooks層 (hooks/) → ドメイン層 (domain/) �
      - テーマ切り替えロジック
 
 2. **サーバー状態 (TanStack Query)**:
+
    - API結果のキャッシュ
      - クエリキーによる効率的なキャッシュ管理
      - 適切なキャッシュ無効化戦略
@@ -757,7 +765,7 @@ export const useAuthStore = create<AuthState>()(
       },
       logout: () => {
         set({ user: null, token: null });
-      }
+      },
     }),
     { name: 'auth-storage' }
   )
@@ -773,14 +781,14 @@ export function useUsers() {
 
   const users = useQuery({
     queryKey: ['users'],
-    queryFn: () => service.getAll()
+    queryFn: () => service.getAll(),
   });
 
   const createUser = useMutation({
     mutationFn: (user: NewUser) => service.create(user),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
-    }
+    },
   });
 
   return { users, createUser };
@@ -792,6 +800,7 @@ export function useUsers() {
 ### next-intl採用（確定）
 
 1. **構造化メッセージファイル**:
+
    - 言語ごとの分離
      - `messages/ja.json`, `messages/en.json`などの言語ファイル
      - 一貫したキー構造で全言語をカバー
@@ -803,6 +812,7 @@ export function useUsers() {
      - 一貫した命名パターンの維持
 
 2. **機能**:
+
    - 複数言語サポート
      - 初期フェーズでは日英対応
      - スケーリング時に他言語拡張容易な設計
@@ -835,6 +845,7 @@ export function useUsers() {
 ### Cloudflare Analytics + カスタムロギング（確定）
 
 1. **アプリケーションモニタリング**:
+
    - エラー率とその分布
      - エラータイプ別の発生頻度
      - エラーのトレンド分析
@@ -853,6 +864,7 @@ export function useUsers() {
      - コスト予測と最適化ポイント
 
 2. **ユーザー行動分析**:
+
    - ページビューとセッション
      - ページごとの滞在時間
      - バウンス率と離脱ポイント
@@ -871,6 +883,7 @@ export function useUsers() {
      - ユーザーセグメント別の行動パターン
 
 3. **AIエージェント評価**:
+
    - 完了率
      - ワークフロー別完了率
      - エラー発生ポイントの分析
@@ -928,6 +941,7 @@ export function useUsers() {
      - ユーザーフィードバックの収集体制
      - 重要指標の定義と測定
 2. **成長フェーズ (ユーザー増加時)**:
+
    - キャッシング戦略の最適化
      - KVを活用した効率的キャッシュレイヤー
      - CDNキャッシュルールの最適化
@@ -942,6 +956,7 @@ export function useUsers() {
      - バッチ処理の導入
 
 3. **スケールフェーズ (本格運用時)**:
+
    - PlanetScaleへの移行計画
      - 段階的なデータ移行戦略
      - ダウンタイムゼロの移行手法
@@ -975,12 +990,12 @@ export function useUsers() {
 
 ### 環境変数ファイル（確定）
 
-| ファイル | 目的 | バージョン管理 |
-|---------|------|--------------|
-| `.env.sample` | テンプレート（サンプル値） | ✅ 対象 |
-| `.env.local` | ローカル開発環境設定 | ❌ 対象外 |
-| `.env.test` | テスト実行環境設定 | ✅ 対象 |
-| `.env.e2e` | E2Eテスト実行環境設定 | ✅ 対象 |
+| ファイル      | 目的                       | バージョン管理 |
+| ------------- | -------------------------- | -------------- |
+| `.env.sample` | テンプレート（サンプル値） | ✅ 対象        |
+| `.env.local`  | ローカル開発環境設定       | ❌ 対象外      |
+| `.env.test`   | テスト実行環境設定         | ✅ 対象        |
+| `.env.e2e`    | E2Eテスト実行環境設定      | ✅ 対象        |
 
 ### 標準環境変数（確定）
 
@@ -1011,11 +1026,13 @@ OPENAI_API_KEY=your-openai-api-key-here
 ### シークレット管理原則
 
 1. **ローカル開発**:
+
    - `.env.local`ファイルにシークレットを保存（バージョン管理対象外）
    - 開発チーム内で安全にシークレットを共有する方法を確立
    - 自動生成されたダミー値をローカルテスト用に使用
 
 2. **CI/CD環境**:
+
    - GitHub Secretsを使用してシークレットを保存
    - 環境変数として安全にワークフローに提供
    - 本番シークレットへのアクセスを最小限の管理者に制限
@@ -1063,6 +1080,7 @@ declare namespace NodeJS {
 ### 標準開発プロセス（確定）
 
 1. **環境設定**:
+
    - Node.js 18+ (LTS)
      - 開発チーム全体で同一バージョンの使用
      - nvmによるバージョン管理
@@ -1087,19 +1105,20 @@ declare namespace NodeJS {
 
 Docker環境と通常のローカル環境のコマンドの対応関係は以下の通りです：
 
-| 機能 | Docker環境 | 通常環境 |
-|------|------------|----------|
-| 開発サーバー起動 | `./scripts/docker-dev.sh start` | `pnpm dev` |
-| テスト実行 | `./scripts/docker-dev.sh test` | `pnpm test` |
+| 機能                 | Docker環境                                    | 通常環境          |
+| -------------------- | --------------------------------------------- | ----------------- |
+| 開発サーバー起動     | `./scripts/docker-dev.sh start`               | `pnpm dev`        |
+| テスト実行           | `./scripts/docker-dev.sh test`                | `pnpm test`       |
 | テスト（監視モード） | `docker-compose run --rm app pnpm test:watch` | `pnpm test:watch` |
-| E2Eテスト | `./scripts/docker-dev.sh e2e` | `pnpm test:e2e` |
-| ビルド | `./scripts/docker-dev.sh build` | `pnpm build` |
-| リント | `./scripts/docker-dev.sh lint` | `pnpm lint` |
-| 型チェック | `docker-compose run --rm app pnpm type-check` | `pnpm type-check` |
+| E2Eテスト            | `./scripts/docker-dev.sh e2e`                 | `pnpm test:e2e`   |
+| ビルド               | `./scripts/docker-dev.sh build`               | `pnpm build`      |
+| リント               | `./scripts/docker-dev.sh lint`                | `pnpm lint`       |
+| 型チェック           | `docker-compose run --rm app pnpm type-check` | `pnpm type-check` |
 
 Docker環境はチーム間の一貫性を保証しますが、パフォーマンスが必要な場合は通常環境も利用可能です。
 
 3. **ブランチ戦略**:
+
    - メインブランチ: `main` (本番), `develop` (開発)
      - `main`への直接プッシュ禁止
      - `develop`から`main`へのマージは承認必須
@@ -1114,6 +1133,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - テストケースの追加
 
 4. **CI/CD**:
+
    - GitHub Actions自動化
      - プッシュごとの自動テスト
      - リント・型チェックの自動実行
@@ -1156,6 +1176,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
 ### 多層テスト戦略（確定）
 
 1. **単体テスト**:
+
    - ドメインロジックの完全カバレッジ
      - ドメインサービスの網羅的テスト
      - エンティティのビジネスロジックテスト
@@ -1170,6 +1191,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - アクセシビリティ考慮のテスト手法
 
 2. **統合テスト**:
+
    - APIエンドポイントテスト
      - エンドツーエンドのリクエスト/レスポンステスト
      - 認証/認可機能の検証
@@ -1184,6 +1206,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - エラー回復メカニズムの確認
 
 3. **E2Eテスト**:
+
    - 主要ユーザーフロー
      - 登録から利用までの一連のフロー
      - 複雑なデータ入力と操作シーケンス
@@ -1198,6 +1221,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - アクセシビリティテストの統合
 
 4. **段階的カバレッジ目標**:
+
    - 開発フェーズに応じたテストカバレッジの段階的向上
    - 重要なコードパスに対する厳格なカバレッジ要件
    - フェーズごとの目標:
@@ -1230,6 +1254,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
 ### 採用すべきパターン（確定）
 
 1. **関心の分離**:
+
    - 単一責任の原則
      - 変更理由の局所化
      - 修正範囲の最小化
@@ -1244,6 +1269,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - モジュール間の疎結合
 
 2. **依存性注入**:
+
    - コンストラクタインジェクション
      - 依存関係の明示化
      - テスト容易性の確保
@@ -1258,6 +1284,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - 透明な依存関係グラフ
 
 3. **インターフェース指向**:
+
    - 実装より抽象化
      - プログラミング対インターフェース
      - 実装交換の容易性
@@ -1272,6 +1299,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - コントロールフローと依存方向の逆転
 
 4. **モジュール分割**:
+
    - 機能ごとの分割
      - ビジネスドメイン単位の分割
      - 内部結合度の最大化
@@ -1286,6 +1314,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - インターフェースの一貫性
 
 5. **設定の外部化**:
+
    - 環境変数の活用
      - 環境ごとの設定分離
      - シークレット管理の適切な方法
@@ -1300,6 +1329,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      - 依存グラフの監視と最適化
 
 6. **コメント記述の原則**:
+
    - 目的指向コメント
      - なぜそのコードが存在するのかを説明
      - 複雑なロジックの背景や意図を明確化
@@ -1341,6 +1371,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
    **JSDocの詳細例**:
 
    関数へのJSDoc:
+
    ```typescript
    /**
     * ユーザー認証を実行し、JWTトークンを返却します
@@ -1354,12 +1385,16 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
     * // 認証の使用例
     * const { token, user } = await authenticateUser('user@example.com', 'password123');
     */
-   async function authenticateUser(email: string, password: string): Promise<{token: string, user: User}> {
+   async function authenticateUser(
+     email: string,
+     password: string
+   ): Promise<{ token: string; user: User }> {
      // 実装...
    }
    ```
 
    クラスへのJSDoc:
+
    ```typescript
    /**
     * ユーザーリポジトリクラス
@@ -1402,6 +1437,7 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
    コードは可能な限り自己説明的であるべきです:
 
    - 良い命名規則: 変数、関数、クラス名が目的を明確に表現する
+
      ```typescript
      // 悪い例
      const u = getD(); // 何を取得しているのか不明瞭
@@ -1411,20 +1447,29 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
      ```
 
    - 明確な関数シグネチャ: パラメータ名と戻り値の型から目的が読み取れる
+
      ```typescript
      // 悪い例
-     function process(a, b) { /* ... */ }
+     function process(a, b) {
+       /* ... */
+     }
 
      // 良い例
-     function calculateTotalPrice(itemPrice: number, quantity: number): number { /* ... */ }
+     function calculateTotalPrice(itemPrice: number, quantity: number): number {
+       /* ... */
+     }
      ```
 
    - 適切な抽象化: 複雑なロジックを意味のある関数名に抽象化
+
      ```typescript
      // 悪い例 - 複雑なロジックが直接インライン
-     if (user && user.subscription &&
-         (user.subscription.status === 'active' || user.subscription.status === 'trial') &&
-         new Date() < new Date(user.subscription.expiresAt)) {
+     if (
+       user &&
+       user.subscription &&
+       (user.subscription.status === 'active' || user.subscription.status === 'trial') &&
+       new Date() < new Date(user.subscription.expiresAt)
+     ) {
        // アクセス許可
      }
 
@@ -1447,12 +1492,14 @@ Docker環境はチーム間の一貫性を保証しますが、パフォーマ�
 Mastraは日常業務を簡略化するAIシステム構築に最適なフレームワークです。以下のコンポーネントで構成されます：
 
 1. **エージェント設計**:
+
    - 明確な責任を持つ特化型エージェント
    - 再利用可能なツールセット
    - モジュール化された会話フロー
    - 高度なプロンプト最適化機能
    - 複数モデル対応（GPT-4oなど）
    - 例：
+
      ```typescript
      // mastra/agents/task_manager_agent.ts
      import { createAgent } from '@mastrajs/core';
@@ -1463,17 +1510,19 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
        description: 'タスク管理を支援するエージェント',
        tools: [createTask, updateTask, listTasks, searchTask],
        systemMessage: `あなたはユーザーのタスク管理を支援するアシスタントです。`,
-       model: 'gpt-4o'
+       model: 'gpt-4o',
      });
      ```
 
 2. **ワークフロー構成**:
+
    - 複数エージェントの連携
    - ステップごとのモジュール化
    - 条件分岐とループによる柔軟性
    - エラーハンドリングとリトライ機能
    - 分散実行と並列処理のサポート
    - 例：
+
      ```typescript
      // mastra/workflows/daily_report_workflow.ts
      import { createWorkflow, step } from '@mastrajs/core';
@@ -1510,12 +1559,14 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
      ```
 
 3. **ツール実装**:
+
    - 明確な入出力スキーマ
    - 再利用性を重視
    - サービス連携のカプセル化
    - 自動型生成とバリデーション
    - オブザーバブルな実行追跡
    - 例：
+
      ```typescript
      // mastra/tools/api_integration_tool.ts
      import { createTool } from '@mastrajs/core';
@@ -1526,26 +1577,28 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
        description: '外部APIからデータを取得する',
        inputSchema: z.object({
          endpoint: z.string(),
-         parameters: z.record(z.string()).optional()
+         parameters: z.record(z.string()).optional(),
        }),
        outputSchema: z.object({
          data: z.any(),
-         status: z.number()
+         status: z.number(),
        }),
        execute: async ({ endpoint, parameters }) => {
          // API呼び出しロジック
          return { data, status };
-       }
+       },
      });
      ```
 
 4. **RAG（検索拡張生成）実装**:
+
    - ベクトル検索による知識ベース活用
    - 効率的な埋め込み管理
    - コンテキスト拡張によるレスポンス改善
    - マルチモーダル埋め込みサポート
    - リアルタイムインデックス更新
    - 例：
+
      ```typescript
      // mastra/rag/vector_store.ts
      import { createVectorStore, createVectorQueryTool } from '@mastrajs/core';
@@ -1554,7 +1607,7 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
      export const knowledgeBase = createVectorStore({
        provider: 'cloudflare',
        indexName: 'company-knowledge',
-       embeddings: openAIEmbeddings
+       embeddings: openAIEmbeddings,
      });
 
      // 検索ツール作成
@@ -1562,17 +1615,19 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
        vectorStore: knowledgeBase,
        name: 'searchKnowledge',
        description: '社内ナレッジを検索する',
-       returnSourceDocuments: true
+       returnSourceDocuments: true,
      });
      ```
 
 5. **メモリ管理**:
+
    - 会話履歴の保持
    - コンテキストの維持
    - 状態管理の最適化
    - 長期メモリと短期メモリの統合
    - シームレスなコンテキスト共有
    - 例：
+
      ```typescript
      // mastra/memory/memory_config.ts
      import { createBufferMemory } from '@mastrajs/core';
@@ -1583,17 +1638,19 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
        inputKey: 'input',
        outputKey: 'output',
        maxTokenLimit: 8000,
-       summarizationStrategy: 'automatic'
+       summarizationStrategy: 'automatic',
      });
      ```
 
 6. **評価システム（Evals）**:
+
    - エージェント出力の品質評価
    - 自動テストと継続的改善
    - メトリクスによる定量評価
    - ヒューマンフィードバック統合
    - A/Bテスト機能
    - 例：
+
      ```typescript
      // mastra/evals/response_evaluation.ts
      import { createEvaluation, AnswerRelevancyMetric } from '@mastrajs/core';
@@ -1604,20 +1661,22 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
          new AnswerRelevancyMetric(),
          new FaithfulnessMetric(),
          new ToxicityMetric(),
-         new UserSatisfactionMetric()
+         new UserSatisfactionMetric(),
        ],
        evaluationPrompt: `評価者として、以下の応答の品質を評価してください...`,
-       model: 'gpt-4o'
+       model: 'gpt-4o',
      });
      ```
 
 7. **モニタリングとオブザーバビリティ**:
+
    - 詳細な実行ログ
    - パフォーマンスメトリクス収集
    - トレース機能
    - リアルタイムアラート
    - ダッシュボード連携
    - 例：
+
      ```typescript
      // mastra/observability/monitoring.ts
      import { configureMastraMonitoring } from '@mastrajs/core';
@@ -1629,9 +1688,9 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
          tracingEnabled: true,
          exporters: {
            console: true,
-           cloudflare: process.env.CLOUDFLARE_ANALYTICS_TOKEN ? true : false
+           cloudflare: process.env.CLOUDFLARE_ANALYTICS_TOKEN ? true : false,
          },
-         samplingRate: 0.1
+         samplingRate: 0.1,
        });
      };
      ```
@@ -1639,6 +1698,7 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
 ### Mastraによるシステム構築のベストプラクティス
 
 1. **関心の分離**:
+
    - 各エージェントに明確な責任を持たせる
      - 単一目的の専門エージェント設計
      - 細粒度の責任定義
@@ -1653,6 +1713,7 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
      - エラー分離と回復メカニズム
 
 2. **型安全性の確保**:
+
    - Zodスキーマによる入出力の厳密な定義
      - すべての入出力の検証
      - ランタイム型安全性の確保
@@ -1667,6 +1728,7 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
      - 型と実装の一貫性保証
 
 3. **モジュール性と再利用**:
+
    - 共通機能をツールとして抽象化
      - 汎用ユーティリティツールの設計
      - ドメイン固有ツールの分離
@@ -1681,6 +1743,7 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
      - 合成可能なステップ設計
 
 4. **テストと評価**:
+
    - 自動Evalsによる品質保証
      - 定量的評価メトリクスの設定
      - ユースケース別の評価基準
@@ -1728,12 +1791,14 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
 以下の項目を確認して、開発準備が整っていることを確認してください：
 
 ✅ **基本環境**
+
 - [ ] Node.js v18.18.0以上（推奨：v20.10.0）が正しくインストールされている
 - [ ] pnpm v8.10.0以上が正しくインストールされている
 - [ ] Git 2.40.0以上がインストールされている
 - [ ] VSCodeと必要な拡張機能がインストールされている
 
 ✅ **プロジェクト設定**
+
 - [ ] リポジトリが正しくクローンされている
 - [ ] 依存関係がすべてインストールされている (`pnpm install`の実行)
 - [ ] `.env.local`ファイルが作成され、必要な環境変数が設定されている
@@ -1742,6 +1807,7 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
 - [ ] `pnpm lint`でリントが正常に実行される
 
 ✅ **Cloudflare設定**
+
 - [ ] Cloudflareアカウントが作成され、アクセス可能である
 - [ ] D1データベースが正しく作成されている
 - [ ] KVネームスペースが正しく作成されている
@@ -1749,11 +1815,13 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
 - [ ] wrangler.tomlが正しく設定されている
 
 ✅ **リポジトリ設定**
+
 - [ ] mainブランチが保護されている（プルリクエスト必須）
 - [ ] GitHub Actionsのワークフローが設定されている
 - [ ] GitHub Secretsに必要な値が設定されている(CF_API_TOKEN, CF_ACCOUNT_ID)
 
 ✅ **ディレクトリ構造**
+
 - [ ] すべての必要なディレクトリが作成されている
 - [ ] 基本的なファイル（エラーハンドラなど）が作成されている
 - [ ] Next.jsのApp Router構造が正しく設定されている
@@ -1767,6 +1835,7 @@ Mastraは日常業務を簡略化するAIシステム構築に最適なフレー
 **症状**: パッケージのインストールエラーやNext.jsの起動エラー
 
 **解決方法**:
+
 ```bash
 # Node.jsバージョンの確認
 node -v
@@ -1785,6 +1854,7 @@ pnpm install
 **症状**: `command not found: pnpm`エラーが表示される
 
 **解決方法**:
+
 ```bash
 # グローバルにpnpmをインストール
 npm install -g pnpm
@@ -1801,11 +1871,13 @@ export PATH="$HOME/.pnpm/bin:$PATH"
 **症状**: Cloudflareリソース作成時の認証エラー
 
 **解決方法**:
+
 1. [Cloudflareダッシュボード](https://dash.cloudflare.com/) > プロフィール > APIトークン へ移動
 2. 「APIトークンの作成」をクリック
 3. 「編集者」テンプレートを選択
 4. アカウントリソースとD1、KV、R2の権限を追加
 5. トークンを生成し、wranglerで再度ログイン：
+
 ```bash
 wrangler login
 ```
@@ -1815,6 +1887,7 @@ wrangler login
 **症状**: 型エラーやTSコンパイルエラー
 
 **解決方法**:
+
 ```bash
 # TypeScriptキャッシュをクリア
 rm -rf .next
@@ -1831,6 +1904,7 @@ pnpm type-check
 **症状**: 開発サーバーが起動しない、または異常終了する
 
 **解決方法**:
+
 ```bash
 # ポートが使用中の場合は別のポートを使用
 pnpm dev -- -p 3001
@@ -1845,6 +1919,7 @@ pnpm dev
 **症状**: フォーマットやリントエラーが表示される
 
 **解決方法**:
+
 ```bash
 # ESLintの実行
 pnpm lint
@@ -1906,31 +1981,31 @@ cat .vscode/settings.json
 
 ## 付録: 技術スタックリファレンス
 
-| カテゴリ | 技術 | バージョン | 目的 |
-|---------|------|-----------|------|
-| **言語/フレームワーク** | TypeScript | 5.3.2+ | 型安全なコード記述 |
-| | Next.js | 14.0.3+ | フロント/バックエンド統合 |
-| **インフラ** | Cloudflare Pages | - | ホスティング |
-| | Cloudflare Workers | - | サーバーレス処理 |
-| | Cloudflare D1 | 1.5.1+ | データベース |
-| | Cloudflare KV | - | キャッシュ |
-| | Cloudflare R2 | - | ファイルストレージ |
-| **AIフレームワーク** | Mastra | 1.0.0+ | AIエージェント・ワークフロー |
-| **データアクセス** | Drizzle ORM | 0.29.0+ | データベースアクセス |
-| **UI** | React | 18.2.0+ | UIコンポーネント |
-| | TailwindCSS | 3.3.5+ | スタイリング |
-| | shadcn/ui | - | UIコンポーネント |
-| **状態管理** | Zustand | 4.4.6+ | クライアント状態管理 |
-| | TanStack Query | 5.8.4+ | サーバー状態管理 |
-| **フォーム処理** | React Hook Form | 7.48.2+ | フォーム状態管理 |
-| | Zod | 3.22.4+ | スキーマ検証 |
-| **国際化** | next-intl | 3.2.1+ | 多言語対応 |
-| **テスト** | Vitest | 0.34.6+ | 単体/統合テスト |
-| | Testing Library | 14.1.2+ | コンポーネントテスト |
-| | Playwright | 1.40.0+ | E2Eテスト |
-| **開発環境** | Node.js | v18.18.0+（v20.10.0推奨） | JavaScript実行環境 |
-| | pnpm | 8.10.0+ | パッケージマネージャー |
-| | Docker | 最新 | コンテナ化開発環境 |
+| カテゴリ                | 技術               | バージョン                | 目的                         |
+| ----------------------- | ------------------ | ------------------------- | ---------------------------- |
+| **言語/フレームワーク** | TypeScript         | 5.3.2+                    | 型安全なコード記述           |
+|                         | Next.js            | 14.0.3+                   | フロント/バックエンド統合    |
+| **インフラ**            | Cloudflare Pages   | -                         | ホスティング                 |
+|                         | Cloudflare Workers | -                         | サーバーレス処理             |
+|                         | Cloudflare D1      | 1.5.1+                    | データベース                 |
+|                         | Cloudflare KV      | -                         | キャッシュ                   |
+|                         | Cloudflare R2      | -                         | ファイルストレージ           |
+| **AIフレームワーク**    | Mastra             | 1.0.0+                    | AIエージェント・ワークフロー |
+| **データアクセス**      | Drizzle ORM        | 0.29.0+                   | データベースアクセス         |
+| **UI**                  | React              | 18.2.0+                   | UIコンポーネント             |
+|                         | TailwindCSS        | 3.3.5+                    | スタイリング                 |
+|                         | shadcn/ui          | -                         | UIコンポーネント             |
+| **状態管理**            | Zustand            | 4.4.6+                    | クライアント状態管理         |
+|                         | TanStack Query     | 5.8.4+                    | サーバー状態管理             |
+| **フォーム処理**        | React Hook Form    | 7.48.2+                   | フォーム状態管理             |
+|                         | Zod                | 3.22.4+                   | スキーマ検証                 |
+| **国際化**              | next-intl          | 3.2.1+                    | 多言語対応                   |
+| **テスト**              | Vitest             | 0.34.6+                   | 単体/統合テスト              |
+|                         | Testing Library    | 14.1.2+                   | コンポーネントテスト         |
+|                         | Playwright         | 1.40.0+                   | E2Eテスト                    |
+| **開発環境**            | Node.js            | v18.18.0+（v20.10.0推奨） | JavaScript実行環境           |
+|                         | pnpm               | 8.10.0+                   | パッケージマネージャー       |
+|                         | Docker             | 最新                      | コンテナ化開発環境           |
 
 この包括的な設計ガイドは、無料プランで構築できる変更容易性と拡張性を持つMVPアーキテクチャの完全なロードマップを提供します。特にMastraを活用したAIシステム構築のベストプラクティスを含め、チーム全体が共通の理解を持ち、一貫した方法で開発を進めるための基盤となります。
 

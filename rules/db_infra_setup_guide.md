@@ -23,12 +23,12 @@
 
 ### 必要なツールとアカウント
 
-| ツール/アカウント | 必要バージョン | 確認方法 | インストール方法 |
-|----------------|--------------|---------|--------------|
-| Node.js | v20.10.0以上 | `node -v` | [公式サイト](https://nodejs.org/) または nvm |
-| pnpm | v8.10.0以上 | `pnpm -v` | `npm install -g pnpm` |
-| wrangler CLI | v3.15.0以上 | `wrangler -v` | `pnpm add -g wrangler` |
-| Cloudflareアカウント | - | [dashboard.cloudflare.com](https://dash.cloudflare.com) | [サインアップ](https://dash.cloudflare.com/sign-up) |
+| ツール/アカウント    | 必要バージョン | 確認方法                                                | インストール方法                                    |
+| -------------------- | -------------- | ------------------------------------------------------- | --------------------------------------------------- |
+| Node.js              | v20.10.0以上   | `node -v`                                               | [公式サイト](https://nodejs.org/) または nvm        |
+| pnpm                 | v8.10.0以上    | `pnpm -v`                                               | `npm install -g pnpm`                               |
+| wrangler CLI         | v3.15.0以上    | `wrangler -v`                                           | `pnpm add -g wrangler`                              |
+| Cloudflareアカウント | -              | [dashboard.cloudflare.com](https://dash.cloudflare.com) | [サインアップ](https://dash.cloudflare.com/sign-up) |
 
 ### 確認手順
 
@@ -1309,8 +1309,6 @@ pnpm test:connection
 
 ### 8.1 シードユーティリティの作成
 
-データベースに初期データを投入するためのシード機能を実装します。
-
 ```bash
 # シードディレクトリの作成 - 機能ごとのシードを実装可能に
 mkdir -p src/infrastructure/database/seeds/[feature]
@@ -1628,7 +1626,9 @@ export async function POST(req: Request) {
     // 本番環境では実行不可（安全対策）
     if (process.env.NODE_ENV === 'production') {
       return NextResponse.json(
-        { error: '本番環境ではこの操作は実行できません。開発/ステージング環境でのみ使用可能です。' },
+        {
+          error: '本番環境ではこの操作は実行できません。開発/ステージング環境でのみ使用可能です。',
+        },
         { status: 403 }
       );
     }
@@ -1653,7 +1653,10 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error('シード処理エラー:', error);
     return NextResponse.json(
-      { error: 'シード処理に失敗しました', message: error instanceof Error ? error.message : String(error) },
+      {
+        error: 'シード処理に失敗しました',
+        message: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
@@ -1993,12 +1996,10 @@ pnpm add -D node-fetch@2.6.7 chalk@4.1.2
   // ... 既存のスクリプト
   "db:generate": "drizzle-kit generate",
   "db:migrate": "node scripts/migrate.js",
-  "db:studio": "drizzle-kit studio",
-   cat drizzle/*.sql
-   # SQLの文法エラーがないか確認
-   ```
+```
 
 4. データベースを初期化して再試行（開発環境のみ）
+
    ```bash
    # データベースを初期化（既存データはすべて削除されるので注意）
    # これは開発環境でのみ行うこと
@@ -2015,10 +2016,12 @@ pnpm add -D node-fetch@2.6.7 chalk@4.1.2
 **解決策**:
 
 1. APIトークンの権限を確認
+
    - Cloudflareダッシュボードで、使用しているAPIトークンがCF_API_TOKENに正しく設定されているか確認
    - トークンにPages、D1、KV、R2の編集権限があるか確認
 
 2. 環境変数が正しく設定されているか確認
+
    ```bash
    # 環境変数が設定されているか確認（値は表示されないが名前は確認可能）
    env | grep CF_
@@ -2027,6 +2030,7 @@ pnpm add -D node-fetch@2.6.7 chalk@4.1.2
    ```
 
 3. wranglerのバージョンを確認
+
    ```bash
    wrangler --version
    # 最新バージョンでない場合は更新
@@ -2034,6 +2038,7 @@ pnpm add -D node-fetch@2.6.7 chalk@4.1.2
    ```
 
 4. ローカルでビルドできるか確認
+
    ```bash
    # ローカルビルドテスト
    pnpm build
@@ -2048,28 +2053,32 @@ pnpm add -D node-fetch@2.6.7 chalk@4.1.2
 ### 10.5 一般的なデバッグ手法
 
 1. **ログを詳細に出力**:
+
    ```js
    // サーバーサイドコードでのデバッグ
    console.log('デバッグ情報:', {
      variable1,
      variable2,
-     objectDetails: JSON.stringify(someObject, null, 2)
+     objectDetails: JSON.stringify(someObject, null, 2),
    });
    ```
 
 2. **Cloudflareログの確認**:
+
    ```bash
    # Cloudflareワーカーのログを表示
    wrangler tail
    ```
 
 3. **環境変数の確認**:
+
    ```bash
    # Cloudflare上の環境変数を表示
    wrangler pages env list
    ```
 
 4. **データベース状態の確認**:
+
    ```bash
    # テーブル一覧を表示
    wrangler d1 execute automationa-tools-db --command "SELECT name FROM sqlite_master WHERE type='table'"
@@ -2083,6 +2092,51 @@ pnpm add -D node-fetch@2.6.7 chalk@4.1.2
    # Drizzle Studio を起動
    pnpm db:studio
    # ブラウザでデータベースを視覚的に操作可能
+   ```
+
+### 10.3 マイグレーションの問題
+
+**症状**: マイグレーション実行時にエラーが発生する
+
+**解決策**:
+
+1. マイグレーションファイルの文法エラーをチェック
+
+   ```bash
+   # マイグレーションファイルの内容を確認
+   cat drizzle/*.sql
+   # SQLの文法エラーがないか確認
+   ```
+
+2. マイグレーションを清掃して再生成
+
+   ```bash
+   # 古いマイグレーションをクリア
+   rm -rf drizzle
+
+   # スキーマから再生成
+   pnpm drizzle-kit generate
+   ```
+
+3. D1データベース接続設定を確認
+
+   ```bash
+   # D1データベースIDが正しく設定されているか確認
+   grep "database_id" wrangler.toml
+
+   # D1バインディング名が正しいか確認
+   grep "binding" wrangler.toml | grep -A 1 "d1_databases"
+   ```
+
+4. データベースを初期化して再試行（開発環境のみ）
+
+   ```bash
+   # データベースを初期化（既存データはすべて削除されるので注意）
+   # これは開発環境でのみ行うこと
+   wrangler d1 execute automationa-tools-db --command "DROP TABLE IF EXISTS users; DROP TABLE IF EXISTS tasks;"
+
+   # マイグレーションを再実行
+   pnpm db:migrate
    ```
 
 ## まとめ

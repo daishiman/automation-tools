@@ -29,7 +29,7 @@ function runCommand(command, silent = false) {
   try {
     const output = execSync(command, {
       stdio: silent ? 'pipe' : 'inherit',
-      encoding: 'utf-8'
+      encoding: 'utf-8',
     });
     return output;
   } catch (error) {
@@ -80,26 +80,26 @@ function extractCoverageInfo() {
     let coveredLines = 0;
 
     // 各ファイルの情報を集計
-    Object.keys(coverageData).forEach(filePath => {
+    Object.keys(coverageData).forEach((filePath) => {
       const fileData = coverageData[filePath];
 
       // ステートメント
       if (fileData.statementMap && fileData.s) {
         totalStatements += Object.keys(fileData.statementMap).length;
-        coveredStatements += Object.values(fileData.s).filter(v => v > 0).length;
+        coveredStatements += Object.values(fileData.s).filter((v) => v > 0).length;
       }
 
       // 関数
       if (fileData.fnMap && fileData.f) {
         totalFunctions += Object.keys(fileData.fnMap).length;
-        coveredFunctions += Object.values(fileData.f).filter(v => v > 0).length;
+        coveredFunctions += Object.values(fileData.f).filter((v) => v > 0).length;
       }
 
       // ブランチ
       if (fileData.branchMap && fileData.b) {
-        Object.values(fileData.b).forEach(branches => {
+        Object.values(fileData.b).forEach((branches) => {
           totalBranches += branches.length;
-          coveredBranches += branches.filter(v => v > 0).length;
+          coveredBranches += branches.filter((v) => v > 0).length;
         });
       }
 
@@ -107,7 +107,7 @@ function extractCoverageInfo() {
       if (fileData.s) {
         // 行数を推定（正確ではないが概算）
         const lineKeys = new Set();
-        Object.keys(fileData.statementMap).forEach(key => {
+        Object.keys(fileData.statementMap).forEach((key) => {
           const stmt = fileData.statementMap[key];
           for (let i = stmt.start.line; i <= stmt.end.line; i++) {
             lineKeys.add(i);
@@ -117,7 +117,7 @@ function extractCoverageInfo() {
 
         // カバーされた行を推定
         const coveredLineKeys = new Set();
-        Object.keys(fileData.s).forEach(key => {
+        Object.keys(fileData.s).forEach((key) => {
           if (fileData.s[key] > 0) {
             const stmt = fileData.statementMap[key];
             for (let i = stmt.start.line; i <= stmt.end.line; i++) {
@@ -134,33 +134,34 @@ function extractCoverageInfo() {
     const functionCoverage = totalFunctions > 0 ? (coveredFunctions / totalFunctions) * 100 : 0;
     const branchCoverage = totalBranches > 0 ? (coveredBranches / totalBranches) * 100 : 0;
     const lineCoverage = totalLines > 0 ? (coveredLines / totalLines) * 100 : 0;
-    const totalCoverage = (statementCoverage + functionCoverage + branchCoverage + lineCoverage) / 4;
+    const totalCoverage =
+      (statementCoverage + functionCoverage + branchCoverage + lineCoverage) / 4;
 
     return {
       date: new Date().toISOString(),
       statements: {
         total: totalStatements,
         covered: coveredStatements,
-        percentage: statementCoverage.toFixed(2)
+        percentage: statementCoverage.toFixed(2),
       },
       functions: {
         total: totalFunctions,
         covered: coveredFunctions,
-        percentage: functionCoverage.toFixed(2)
+        percentage: functionCoverage.toFixed(2),
       },
       branches: {
         total: totalBranches,
         covered: coveredBranches,
-        percentage: branchCoverage.toFixed(2)
+        percentage: branchCoverage.toFixed(2),
       },
       lines: {
         total: totalLines,
         covered: coveredLines,
-        percentage: lineCoverage.toFixed(2)
+        percentage: lineCoverage.toFixed(2),
       },
       total: {
-        percentage: totalCoverage.toFixed(2)
-      }
+        percentage: totalCoverage.toFixed(2),
+      },
     };
   } catch (error) {
     console.error(`${RED}カバレッジ情報の抽出に失敗しました: ${error.message}${NC}`);
@@ -185,9 +186,7 @@ function updateCoverageHistory(coverageInfo) {
 
     // 今日のエントリがあるか確認
     const today = new Date().toISOString().split('T')[0];
-    const existingTodayEntry = history.findIndex(entry =>
-      entry.date.split('T')[0] === today
-    );
+    const existingTodayEntry = history.findIndex((entry) => entry.date.split('T')[0] === today);
 
     if (existingTodayEntry !== -1) {
       // 今日のエントリを更新
@@ -245,7 +244,7 @@ function generateCoverageSummary(history, latestCoverage) {
     markdown += `| 日付 | 総合 | ステートメント | 関数 | 分岐 | 行 |\n`;
     markdown += `|------|------|----------------|------|------|------|\n`;
 
-    recentHistory.forEach(entry => {
+    recentHistory.forEach((entry) => {
       const date = new Date(entry.date).toLocaleDateString('ja-JP');
       markdown += `| ${date} | ${entry.total.percentage}% | ${entry.statements.percentage}% | ${entry.functions.percentage}% | ${entry.branches.percentage}% | ${entry.lines.percentage}% |\n`;
     });
