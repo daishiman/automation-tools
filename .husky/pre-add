@@ -10,6 +10,29 @@ all_staged_files=$(git diff --cached --name-only --diff-filter=ACM)
 js_ts_files=$(echo "$all_staged_files" | grep -E '\.tsx?$|\.jsx?$')
 rules_md_files=$(echo "$all_staged_files" | grep -E '^rules/.+\.md$')
 
+# JS/TSファイルが存在する場合、lint と format を実行
+if [ ! -z "$js_ts_files" ]; then
+  echo "🧹 ESLint実行中..."
+  pnpm lint
+  lint_result=$?
+
+  if [ $lint_result -ne 0 ]; then
+    echo "❌ Lintエラーがあります。修正してから再度 git add を実行してください。"
+    exit 1
+  fi
+
+  echo "💅 Prettier実行中..."
+  pnpm format
+  format_result=$?
+
+  if [ $format_result -ne 0 ]; then
+    echo "❌ フォーマットエラーがあります。修正してから再度 git add を実行してください。"
+    exit 1
+  fi
+
+  echo "✅ Lintとフォーマットチェック成功！"
+fi
+
 # rulesディレクトリのMarkdownファイルがステージングされている場合
 if [ ! -z "$rules_md_files" ]; then
   echo "📝 rulesディレクトリの変更を検出。基本検証を実行..."
@@ -47,7 +70,7 @@ fi
 
 # JS/TSファイルがない場合はスキップ
 if [ -z "$js_ts_files" ]; then
-  echo "📝 JSまたはTSファイルの変更なし。スキップします。"
+  echo "📝 JSまたはTSファイルの変更なし。テストをスキップします。"
   exit 0
 fi
 
@@ -63,7 +86,7 @@ echo "🧪 変更関連テスト実行中..."
 if grep -q "\"test:changed\"" package.json; then
   pnpm test:changed
 else
-  pnpm vitest --findRelatedTests $js_ts_files --passWithNoTests
+  pnpm vitest related $js_ts_files --passWithNoTests --run
 fi
 test_exit_code=$?
 

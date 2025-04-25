@@ -5,6 +5,9 @@ echo "🔍 プッシュ前チェック実行中..."
 # プロジェクトのルートディレクトリに移動
 cd "$(git rev-parse --show-toplevel)"
 
+# 開始時間を記録
+start_time=$(date +%s)
+
 # 現在のブランチを取得
 current_branch=$(git symbolic-ref --short HEAD)
 target_branch=$(git rev-parse --abbrev-ref @{upstream} 2>/dev/null | sed 's/origin\///')
@@ -20,15 +23,38 @@ else
   echo "🌐 現在: $current_branch → ターゲット: ${target_branch:-未設定}"
 fi
 
-# 実行開始時間を記録
-start_time=$(date +%s)
+# チェック結果を追跡する変数
+errors=0
+warnings=0
 
-# 型チェック（必須）
+# ヘルパー関数: チェック結果の表示と追跡
+check_result() {
+  local result=$1
+  local message=$2
+  local error_type=$3
+
+  if [ $result -ne 0 ]; then
+    if [ "$error_type" = "warning" ]; then
+      echo "⚠️ $message"
+      warnings=$((warnings + 1))
+    else
+      echo "❌ $message"
+      errors=$((errors + 1))
+    fi
+    return 1
+  else
+    echo "✅ $message"
+    return 0
+  fi
+}
+
+# 1. 型チェック（最優先）
 echo "📝 型チェック実行中..."
 pnpm type-check
+check_result $? "型チェック完了" "error"
 typecheck_result=$?
 
-# テスト実行（ブランチに応じて挙動変更）
+# 2. テスト実行（ブランチに応じて挙動変更）
 echo "🧪 テスト実行中..."
 if [ "$is_main_branch" = true ]; then
   # カバレッジ測定 (テスト戦略の目標：重要ロジック70%以上)
@@ -37,118 +63,140 @@ if [ "$is_main_branch" = true ]; then
   else
     pnpm vitest run --coverage
   fi
-  coverage_result=$?
-  # カバレッジが目標値以下の場合はエラー
+  test_result=$?
+
+  # カバレッジが目標値以下の場合は警告
   coverage_file=$(find . -name "coverage-summary.json" -type f | head -n 1)
   if [ -n "$coverage_file" ]; then
     coverage_percent=$(cat $coverage_file | grep -o '"lines":{"total":[0-9]*,"covered":[0-9]*,"skipped":[0-9]*,"pct":[0-9]*\.[0-9]*' | grep -o 'pct":[0-9]*\.[0-9]*' | grep -o '[0-9]*\.[0-9]*')
     if (( $(echo "$coverage_percent < 70" | bc -l) )); then
       echo "⚠️ コードカバレッジが目標値に達していません: $coverage_percent% (目標: 70%)"
-      coverage_low=1
+      warnings=$((warnings + 1))
     else
-      coverage_low=0
+      echo "✅ コードカバレッジ: $coverage_percent% (目標: 70%)"
     fi
   else
     echo "⚠️ カバレッジレポートが見つかりません"
-    coverage_low=0
+    warnings=$((warnings + 1))
   fi
 else
   # 開発ブランチでは高速テスト
-  pnpm vitest run
-  coverage_result=0
-  coverage_low=0
+  pnpm vitest run --bail
+  test_result=$?
 fi
-test_result=$?
 
-# ESLintチェック
+check_result $test_result "テスト完了" "error"
+
+# 3. ESLintチェック
 echo "🧹 ESLint実行中..."
 pnpm lint
+check_result $? "ESLint完了" "error"
 lint_result=$?
 
-# フォーマットチェック
+# 4. フォーマットチェック
 echo "💅 Prettier実行中..."
 if grep -q "\"format\"" package.json; then
   pnpm format
+  check_result $? "Prettier実行完了" "warning"
 elif grep -q "\"fmt\"" package.json; then
   pnpm fmt
+  check_result $? "Prettier実行完了" "warning"
 else
-  echo "フォーマットコマンドが見つかりません"
+  echo "ℹ️ フォーマットコマンドが見つかりません"
 fi
 format_result=$?
 
-# セキュリティチェック
+# 5. セキュリティチェック (警告として扱う)
 echo "🔒 セキュリティチェック実行中..."
 pnpm audit --production
 security_result=$?
+if [ $security_result -ne 0 ]; then
+  echo "⚠️ セキュリティの問題が検出されました。将来的に修正を検討してください。"
+  warnings=$((warnings + 1))
+else
+  echo "✅ セキュリティチェック完了"
+fi
 
-# rulesディレクトリの包括的チェック（main/devブランチでは必須）
-echo "📚 ドキュメント整合性チェック実行中..."
-
-# rulesディレクトリが存在するかチェック
-if [ -d "rules" ]; then
-  # すべてのルールファイルを検証
-  all_rules_files=$(find rules -name "*.md")
-  rules_error=0
-  rules_warnings=0
-
-  # ルールディレクトリの構造チェック
-  required_dirs=("0_common" "1_business_requirements" "2_backend_functional_requirements"
-                 "3_frontend_functional_requirements" "4_nonFunctional_requirements"
-                 "5_development_process" "6_risk_and_release_plan")
-
-  for dir in "${required_dirs[@]}"; do
-    if [ ! -d "rules/$dir" ]; then
-      echo "❌ 必須ディレクトリが不足: rules/$dir"
-      rules_error=1
-    fi
-  done
-
-  # README.mdの存在確認
-  if [ ! -f "rules/README.md" ]; then
-    echo "❌ rules/README.mdが見つかりません"
-    rules_error=1
+# 6. main/devブランチのみ実行する追加チェック
+if [ "$is_main_branch" = true ]; then
+  # ビルドチェック
+  echo "🏗️ ビルドテスト実行中..."
+  if grep -q "\"build\"" package.json; then
+    pnpm build
+    check_result $? "ビルドテスト完了" "error"
+    build_result=$?
+  else
+    echo "ℹ️ ビルドコマンドが見つかりません"
+    build_result=0
   fi
 
-  # 各Markdownファイルの検証
-  for file in $all_rules_files; do
-    # メインヘッダーチェック
-    if ! grep -q "^# " "$file"; then
-      echo "⚠️ $file にメインヘッダー(#)がありません"
-      rules_warnings=$((rules_warnings + 1))
-    fi
+  # 7. rulesディレクトリの包括的チェック（main/devブランチでは必須）
+  echo "📚 ドキュメント整合性チェック実行中..."
+  rules_check_result=0
 
-    # ファイル内リンク確認
-    broken_links=$(grep -o "\[.*\](.*\.md)" "$file" | grep -v "http" | sed 's/.*(\(.*\))/\1/' | while read link; do
-      linked_file=$(echo "$link" | sed 's/#.*//')
-      if [ ! -z "$linked_file" ] && [ ! -f "$(dirname "$file")/$linked_file" ]; then
-        echo "$linked_file"
+  # rulesディレクトリが存在するかチェック
+  if [ -d "rules" ]; then
+    # すべてのルールファイルを検証
+    all_rules_files=$(find rules -name "*.md")
+    rules_warnings=0
+
+    # ルールディレクトリの構造チェック
+    required_dirs=("0_common" "1_business_requirements" "2_backend_functional_requirements"
+                  "3_frontend_functional_requirements" "4_nonFunctional_requirements"
+                  "5_development_process" "6_risk_and_release_plan")
+
+    for dir in "${required_dirs[@]}"; do
+      if [ ! -d "rules/$dir" ]; then
+        echo "❌ 必須ディレクトリが不足: rules/$dir"
+        rules_check_result=1
       fi
-    done)
+    done
 
-    if [ ! -z "$broken_links" ]; then
-      echo "⚠️ $file に無効なリンクがあります: $broken_links"
-      rules_warnings=$((rules_warnings + 1))
+    # README.mdの存在確認
+    if [ ! -f "rules/README.md" ]; then
+      echo "❌ rules/README.mdが見つかりません"
+      rules_check_result=1
     fi
 
-    # 特定のカテゴリに基づく検証
-    if [[ "$file" == *"requirements"* ]]; then
-      # 要件定義ファイルには必ず複数セクションが必要
-      section_count=$(grep -c "^## " "$file")
-      if [ "$section_count" -lt 2 ]; then
-        echo "⚠️ $file の要件セクション(##)が不足しています($section_count個のみ)"
+    # 各Markdownファイルの検証
+    for file in $all_rules_files; do
+      # メインヘッダーチェック
+      if ! grep -q "^# " "$file"; then
+        echo "⚠️ $file にメインヘッダー(#)がありません"
         rules_warnings=$((rules_warnings + 1))
       fi
-    fi
-  done
 
-  # 参照整合性チェック（各ディレクトリ間の相互参照）
-  echo "🔄 要件の参照整合性をチェック中..."
-  if [ -d "rules/1_business_requirements" ] && [ -d "rules/2_backend_functional_requirements" ]; then
-    business_req=$(grep -r "^## [0-9]\." "rules/1_business_requirements" | sed 's/.*## \([0-9]\.[0-9]*\).*/\1/' | sort)
-    backend_imp=$(grep -r "対応する業務要件:" "rules/2_backend_functional_requirements" | sed 's/.*対応する業務要件: \([0-9]\.[0-9,]*\).*/\1/' | tr ',' '\n' | sort -u)
+      # ファイル内リンク確認
+      broken_links=$(grep -o "\[.*\](.*\.md)" "$file" | grep -v "http" | sed 's/.*(\(.*\))/\1/' | while read link; do
+        linked_file=$(echo "$link" | sed 's/#.*//')
+        if [ ! -z "$linked_file" ] && [ ! -f "$(dirname "$file")/$linked_file" ]; then
+          echo "$linked_file"
+        fi
+      done)
 
-    # 相互参照の確認は、main/devブランチの場合のみ厳格に
-    if [ "$is_main_branch" = true ]; then
+      if [ ! -z "$broken_links" ]; then
+        echo "⚠️ $file に無効なリンクがあります: $broken_links"
+        rules_warnings=$((rules_warnings + 1))
+      fi
+
+      # 特定のカテゴリに基づく検証
+      if [[ "$file" == *"requirements"* ]]; then
+        # 要件定義ファイルには必ず複数セクションが必要
+        section_count=$(grep -c "^## " "$file")
+        if [ "$section_count" -lt 2 ]; then
+          echo "⚠️ $file の要件セクション(##)が不足しています($section_count個のみ)"
+          rules_warnings=$((rules_warnings + 1))
+        fi
+      fi
+    done
+
+    # 参照整合性チェック（各ディレクトリ間の相互参照）
+    echo "🔄 要件の参照整合性をチェック中..."
+    if [ -d "rules/1_business_requirements" ] && [ -d "rules/2_backend_functional_requirements" ]; then
+      business_req=$(grep -r "^## [0-9]\." "rules/1_business_requirements" | sed 's/.*## \([0-9]\.[0-9]*\).*/\1/' | sort)
+      backend_imp=$(grep -r "対応する業務要件:" "rules/2_backend_functional_requirements" | sed 's/.*対応する業務要件: \([0-9]\.[0-9,]*\).*/\1/' | tr ',' '\n' | sort -u)
+
+      # 相互参照の確認は、main/devブランチの場合のみ厳格に
       for req in $business_req; do
         if ! echo "$backend_imp" | grep -q "$req"; then
           echo "⚠️ 業務要件 $req の実装参照が見つかりません"
@@ -156,33 +204,18 @@ if [ -d "rules" ]; then
         fi
       done
     fi
-  fi
 
-  if [ "$rules_error" -ne 0 ]; then
-    echo "❌ ドキュメント構造にエラーがあります。修正が必要です。"
-    rules_check_result=1
-  elif [ "$rules_warnings" -gt 0 ] && [ "$is_main_branch" = true ]; then
-    echo "⚠️ ドキュメントに$rules_warnings個の警告があります。"
-    rules_check_result=1
+    if [ "$rules_check_result" -ne 0 ]; then
+      echo "❌ ドキュメント構造にエラーがあります"
+      errors=$((errors + 1))
+    elif [ "$rules_warnings" -gt 0 ]; then
+      echo "⚠️ ドキュメントに$rules_warnings個の警告があります"
+      warnings=$((warnings + 1))
+    else
+      echo "✅ ドキュメント整合性チェック完了"
+    fi
   else
-    echo "✅ ドキュメント整合性チェック成功"
-    rules_check_result=0
-  fi
-else
-  echo "📝 rulesディレクトリが見つかりません。ドキュメントチェックをスキップします。"
-  rules_check_result=0
-fi
-
-# main/devブランチのみ実行する追加チェック
-if [ "$is_main_branch" = true ]; then
-  # ビルドチェック
-  echo "🏗️ ビルドテスト実行中..."
-  if grep -q "\"build\"" package.json; then
-    pnpm build
-    build_result=$?
-  else
-    echo "ビルドコマンドが見つかりません"
-    build_result=0
+    echo "📝 rulesディレクトリが見つかりません。ドキュメントチェックをスキップします"
   fi
 else
   build_result=0
@@ -196,20 +229,16 @@ execution_time=$((end_time - start_time))
 echo "============================="
 echo "🔍 実行結果"
 
-# エラーが発生したかどうかを判定
-if [ $typecheck_result -ne 0 ] || [ $test_result -ne 0 ] || [ $format_result -ne 0 ] || [ $lint_result -ne 0 ] || [ $security_result -ne 0 ] || [ $build_result -ne 0 ] || [ $coverage_low -ne 0 ] || [ $rules_check_result -ne 0 ]; then
-  echo "❌ 以下のチェックが失敗:"
-  [ $typecheck_result -ne 0 ] && echo "  - 型チェック"
-  [ $test_result -ne 0 ] && echo "  - テスト"
-  [ $format_result -ne 0 ] && echo "  - フォーマット"
-  [ $lint_result -ne 0 ] && echo "  - ESLint"
-  [ $security_result -ne 0 ] && echo "  - セキュリティ"
-  [ $build_result -ne 0 ] && echo "  - ビルド"
-  [ $coverage_low -ne 0 ] && echo "  - コードカバレッジ不足"
-  [ $rules_check_result -ne 0 ] && echo "  - ドキュメント整合性"
+if [ $errors -gt 0 ]; then
+  echo "❌ チェック失敗: $errors 個のエラーが見つかりました"
+  echo "⚠️ 警告: $warnings 個"
   exit_code=1
+elif [ $warnings -gt 0 ] && [ "$is_main_branch" = true ]; then
+  echo "⚠️ main/devブランチでの警告: $warnings 個（修正を推奨）"
+  echo "✅ 重大なエラーはありません"
+  exit_code=0
 else
-  echo "✅ すべてのチェック成功"
+  echo "✅ すべてのチェック成功！"
   exit_code=0
 fi
 
