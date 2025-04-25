@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { UserRepository } from '@/infrastructure/database/repositories/user/index';
-import { User } from '@/infrastructure/database/drizzle';
+import { UserRepository } from '../../../../../src/infrastructure/database/repositories/user/index';
+import { User } from '../../../../../src/infrastructure/database/drizzle/user/schema';
 import type { D1Database } from '@cloudflare/workers-types';
 // 使用していないのでインポートを削除
 // import { eq } from 'drizzle-orm';
