@@ -13,8 +13,20 @@ declare global {
       startTime: number;
       endTime: number;
       memory: {
-        start: NodeJS.MemoryUsage;
-        end: NodeJS.MemoryUsage;
+        start: {
+          rss: number;
+          heapTotal: number;
+          heapUsed: number;
+          external: number;
+          arrayBuffers?: number; // NodeJS.v16以降で追加されたプロパティなのでオプショナルに
+        };
+        end: {
+          rss: number;
+          heapTotal: number;
+          heapUsed: number;
+          external: number;
+          arrayBuffers?: number; // NodeJS.v16以降で追加されたプロパティなのでオプショナルに
+        };
       };
       metrics: Record<
         string,
