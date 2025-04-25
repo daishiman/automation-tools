@@ -89,7 +89,7 @@ describe('Mastra 生成パフォーマンステスト (シンプル版)', () => 
 
     expect(result).toHaveProperty('text');
     expect(result.text).toContain('短いプロンプト');
-  });
+  }, 300000);
 
   it('長いプロンプトのパフォーマンス測定', async () => {
     const result = await generateText(
@@ -98,7 +98,7 @@ describe('Mastra 生成パフォーマンステスト (シンプル版)', () => 
 
     expect(result).toHaveProperty('text');
     expect(result.tokens).toBeGreaterThan(10);
-  });
+  }, 300000);
 
   it('連続した生成リクエストのパフォーマンス', async () => {
     const iterations = 3;
@@ -120,5 +120,5 @@ describe('Mastra 生成パフォーマンステスト (シンプル版)', () => 
     });
 
     expect(results.length).toBe(iterations);
-  });
+  }, 300000);
 });

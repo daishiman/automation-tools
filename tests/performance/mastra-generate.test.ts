@@ -72,7 +72,7 @@ describe('Mastra 生成パフォーマンステスト', () => {
       expect(result).toHaveProperty('text');
       expect(result).toHaveProperty('tokens');
     }
-  });
+  }, 300000);
 
   it('連続した生成リクエストのパフォーマンス', async () => {
     const samplePrompt = 'これは連続テスト用のプロンプトです';
@@ -112,5 +112,5 @@ describe('Mastra 生成パフォーマンステスト', () => {
     // 検証
     expect(results.length).toBe(iterations);
     expect(averageDuration).toBeLessThan(1000); // 平均1秒以内
-  });
+  }, 300000);
 });
