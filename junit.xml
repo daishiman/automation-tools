@@ -1,7 +1,68 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<testsuites name="vitest tests" tests="32" failures="0" errors="0" time="0.779">
-    <testsuite name="tests/unit/domain/user/user.service.test.ts" timestamp="2025-04-25T07:40:14.556Z" hostname="ommp2021.local" tests="5" failures="0" errors="0" skipped="0" time="0.005">
-        <testcase classname="tests/unit/domain/user/user.service.test.ts" name="UserService &gt; getUserById &gt; 正常にユーザーを取得できる場合" time="0.002">
+<testsuites name="vitest tests" tests="42" failures="0" errors="0" time="6.49">
+    <testsuite name="mastra-generate-simplified.test.ts" timestamp="2025-04-25T13:55:59.631Z" hostname="ommp2021.local" tests="4" failures="0" errors="0" skipped="1" time="0.506">
+        <testcase classname="mastra-generate-simplified.test.ts" name="Mastra 生成パフォーマンステスト (シンプル版) &gt; テスト完了後にメトリクスを出力" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="mastra-generate-simplified.test.ts" name="Mastra 生成パフォーマンステスト (シンプル版) &gt; 短いプロンプトのパフォーマンス測定" time="0.101">
+        </testcase>
+        <testcase classname="mastra-generate-simplified.test.ts" name="Mastra 生成パフォーマンステスト (シンプル版) &gt; 長いプロンプトのパフォーマンス測定" time="0.102">
+        </testcase>
+        <testcase classname="mastra-generate-simplified.test.ts" name="Mastra 生成パフォーマンステスト (シンプル版) &gt; 連続した生成リクエストのパフォーマンス" time="0.302">
+        </testcase>
+    </testsuite>
+    <testsuite name="temp_backup/schema.test.ts" timestamp="2025-04-25T13:55:59.632Z" hostname="ommp2021.local" tests="2" failures="0" errors="0" skipped="2" time="0">
+        <testcase classname="temp_backup/schema.test.ts" name="タスクスキーマ &gt; タスクテーブルが存在するべき" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="temp_backup/schema.test.ts" name="タスクスキーマ &gt; Task型とNewTask型が定義されているべき" time="0">
+            <skipped/>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/e2e/login-flow.test.ts" timestamp="2025-04-25T13:55:59.632Z" hostname="ommp2021.local" tests="1" failures="0" errors="0" skipped="0" time="0.001">
+        <testcase classname="tests/e2e/login-flow.test.ts" name="ログインフロー - Vitestダミーテスト &gt; スキップ: このテストはPlaywrightで実行するべきです" time="0.001">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/performance/mastra-generate-simplified.test.ts" timestamp="2025-04-25T13:55:59.632Z" hostname="ommp2021.local" tests="4" failures="0" errors="0" skipped="1" time="0.506">
+        <testcase classname="tests/performance/mastra-generate-simplified.test.ts" name="Mastra 生成パフォーマンステスト (シンプル版) &gt; テスト完了後にメトリクスを出力" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="tests/performance/mastra-generate-simplified.test.ts" name="Mastra 生成パフォーマンステスト (シンプル版) &gt; 短いプロンプトのパフォーマンス測定" time="0.102">
+        </testcase>
+        <testcase classname="tests/performance/mastra-generate-simplified.test.ts" name="Mastra 生成パフォーマンステスト (シンプル版) &gt; 長いプロンプトのパフォーマンス測定" time="0.102">
+        </testcase>
+        <testcase classname="tests/performance/mastra-generate-simplified.test.ts" name="Mastra 生成パフォーマンステスト (シンプル版) &gt; 連続した生成リクエストのパフォーマンス" time="0.302">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/performance/mastra-generate.test.ts" timestamp="2025-04-25T13:55:59.633Z" hostname="ommp2021.local" tests="2" failures="0" errors="0" skipped="0" time="4.015">
+        <testcase classname="tests/performance/mastra-generate.test.ts" name="Mastra 生成パフォーマンステスト &gt; 異なる長さのプロンプトに対する生成パフォーマンスを測定" time="1.507">
+        </testcase>
+        <testcase classname="tests/performance/mastra-generate.test.ts" name="Mastra 生成パフォーマンステスト &gt; 連続した生成リクエストのパフォーマンス" time="2.505">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/integration/database/database-connection.test.ts" timestamp="2025-04-25T13:55:59.633Z" hostname="ommp2021.local" tests="3" failures="0" errors="0" skipped="3" time="0">
+        <testcase classname="tests/integration/database/database-connection.test.ts" name="Database Connection Integration Tests &gt; データベース接続が正常に確立されるべき" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="tests/integration/database/database-connection.test.ts" name="Database Connection Integration Tests &gt; ユーザーテーブルが存在するべき" time="0">
+            <skipped/>
+        </testcase>
+        <testcase classname="tests/integration/database/database-connection.test.ts" name="Database Connection Integration Tests &gt; タスクテーブルが存在するべき" time="0">
+            <skipped/>
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/integration/api/user/user-api.test.ts" timestamp="2025-04-25T13:55:59.633Z" hostname="ommp2021.local" tests="4" failures="0" errors="0" skipped="0" time="0.002">
+        <testcase classname="tests/integration/api/user/user-api.test.ts" name="User API Integration Tests &gt; fetchUsers &gt; ユーザー一覧を正常に取得できる" time="0">
+        </testcase>
+        <testcase classname="tests/integration/api/user/user-api.test.ts" name="User API Integration Tests &gt; fetchUserById &gt; 特定のユーザーを正常に取得できる" time="0">
+        </testcase>
+        <testcase classname="tests/integration/api/user/user-api.test.ts" name="User API Integration Tests &gt; fetchUserById &gt; 存在しないユーザーIDの場合はエラーがスローされる" time="0">
+        </testcase>
+        <testcase classname="tests/integration/api/user/user-api.test.ts" name="User API Integration Tests &gt; createUser &gt; ユーザーを正常に作成できる" time="0">
+        </testcase>
+    </testsuite>
+    <testsuite name="tests/unit/domain/user/user.service.test.ts" timestamp="2025-04-25T13:55:59.634Z" hostname="ommp2021.local" tests="5" failures="0" errors="0" skipped="0" time="0.003">
+        <testcase classname="tests/unit/domain/user/user.service.test.ts" name="UserService &gt; getUserById &gt; 正常にユーザーを取得できる場合" time="0.001">
         </testcase>
         <testcase classname="tests/unit/domain/user/user.service.test.ts" name="UserService &gt; getUserById &gt; ユーザーが見つからない場合はエラーをスローする" time="0.001">
         </testcase>
@@ -9,19 +70,19 @@
         </testcase>
         <testcase classname="tests/unit/domain/user/user.service.test.ts" name="UserService &gt; createUser &gt; 正常にユーザーを作成できる場合" time="0">
         </testcase>
-        <testcase classname="tests/unit/domain/user/user.service.test.ts" name="UserService &gt; createUser &gt; すでに同じメールアドレスのユーザーが存在する場合はエラーをスローする" time="0.001">
+        <testcase classname="tests/unit/domain/user/user.service.test.ts" name="UserService &gt; createUser &gt; すでに同じメールアドレスのユーザーが存在する場合はエラーをスローする" time="0">
         </testcase>
     </testsuite>
-    <testsuite name="tests/unit/infrastructure/database/migrations/migration.test.ts" timestamp="2025-04-25T07:40:14.558Z" hostname="ommp2021.local" tests="3" failures="0" errors="0" skipped="0" time="0.004">
-        <testcase classname="tests/unit/infrastructure/database/migrations/migration.test.ts" name="Migration Scripts &gt; migrate.js &gt; マイグレーションファイルが見つからない場合はエラーを出力して終了すべき" time="0.002">
+    <testsuite name="tests/unit/infrastructure/database/migrations/migration.test.ts" timestamp="2025-04-25T13:55:59.634Z" hostname="ommp2021.local" tests="3" failures="0" errors="0" skipped="0" time="0.012">
+        <testcase classname="tests/unit/infrastructure/database/migrations/migration.test.ts" name="Migration Scripts &gt; migrate.js &gt; マイグレーションファイルが見つからない場合はエラーを出力して終了すべき" time="0.006">
         </testcase>
-        <testcase classname="tests/unit/infrastructure/database/migrations/migration.test.ts" name="Migration Scripts &gt; migrate.js &gt; マイグレーションファイルが存在する場合は各ファイルを順に実行すべき" time="0.001">
+        <testcase classname="tests/unit/infrastructure/database/migrations/migration.test.ts" name="Migration Scripts &gt; migrate.js &gt; マイグレーションファイルが存在する場合は各ファイルを順に実行すべき" time="0.003">
         </testcase>
-        <testcase classname="tests/unit/infrastructure/database/migrations/migration.test.ts" name="Migration Scripts &gt; migrate.js &gt; マイグレーション実行中にエラーが発生した場合は処理を終了すべき" time="0">
+        <testcase classname="tests/unit/infrastructure/database/migrations/migration.test.ts" name="Migration Scripts &gt; migrate.js &gt; マイグレーション実行中にエラーが発生した場合は処理を終了すべき" time="0.001">
         </testcase>
     </testsuite>
-    <testsuite name="tests/unit/infrastructure/database/queryBuilders/task-query-builder.test.ts" timestamp="2025-04-25T07:40:14.558Z" hostname="ommp2021.local" tests="4" failures="0" errors="0" skipped="0" time="0.003">
-        <testcase classname="tests/unit/infrastructure/database/queryBuilders/task-query-builder.test.ts" name="TaskQueryBuilder &gt; byUserId &gt; ユーザーIDによるフィルタを正しく構築すべき" time="0.001">
+    <testsuite name="tests/unit/infrastructure/database/queryBuilders/task-query-builder.test.ts" timestamp="2025-04-25T13:55:59.634Z" hostname="ommp2021.local" tests="4" failures="0" errors="0" skipped="0" time="0.001">
+        <testcase classname="tests/unit/infrastructure/database/queryBuilders/task-query-builder.test.ts" name="TaskQueryBuilder &gt; byUserId &gt; ユーザーIDによるフィルタを正しく構築すべき" time="0">
         </testcase>
         <testcase classname="tests/unit/infrastructure/database/queryBuilders/task-query-builder.test.ts" name="TaskQueryBuilder &gt; byStatus &gt; ステータスによるフィルタを正しく構築すべき" time="0.001">
         </testcase>
@@ -30,52 +91,26 @@
         <testcase classname="tests/unit/infrastructure/database/queryBuilders/task-query-builder.test.ts" name="TaskQueryBuilder &gt; byPriorityRange &gt; 優先度範囲フィルタを正しく構築すべき" time="0">
         </testcase>
     </testsuite>
-    <testsuite name="tests/unit/infrastructure/database/repositories/user-repository.test.ts" timestamp="2025-04-25T07:40:14.559Z" hostname="ommp2021.local" tests="10" failures="0" errors="0" skipped="0" time="0.005">
+    <testsuite name="tests/unit/infrastructure/database/repositories/user-repository.test.ts" timestamp="2025-04-25T13:55:59.635Z" hostname="ommp2021.local" tests="10" failures="0" errors="0" skipped="0" time="0.002">
         <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; findById &gt; 指定したIDのユーザーを返すべき" time="0.001">
         </testcase>
         <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; findById &gt; ユーザーが見つからない場合はnullを返すべき" time="0">
         </testcase>
-        <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; findByEmail &gt; 指定したメールアドレスのユーザーを返すべき" time="0.001">
+        <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; findByEmail &gt; 指定したメールアドレスのユーザーを返すべき" time="0">
         </testcase>
         <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; createUser &gt; 新しいユーザーを作成して返すべき" time="0">
         </testcase>
-        <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; update &gt; ユーザー情報を更新して返すべき" time="0">
+        <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; update &gt; 指定したidに一致するユーザーを更新して返すこと" time="0">
         </testcase>
-        <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; update &gt; 更新対象のユーザーが見つからない場合はnullを返すべき" time="0">
+        <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; update &gt; 指定したidに一致するユーザーが存在しない場合nullを返すこと" time="0.001">
         </testcase>
         <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; delete &gt; ユーザーを削除して成功を返すべき" time="0">
         </testcase>
         <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; delete &gt; 削除対象のユーザーが見つからない場合はfalseを返すべき" time="0">
         </testcase>
-        <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; findAll &gt; すべてのユーザーを返すべき" time="0.001">
+        <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; findAll &gt; すべてのユーザーを返すべき" time="0">
         </testcase>
         <testcase classname="tests/unit/infrastructure/database/repositories/user-repository.test.ts" name="UserRepository &gt; findAll &gt; ユーザーが存在しない場合は空配列を返すべき" time="0">
-        </testcase>
-    </testsuite>
-    <testsuite name="tests/unit/infrastructure/database/drizzle/schema.test.ts" timestamp="2025-04-25T07:40:14.559Z" hostname="ommp2021.local" tests="8" failures="0" errors="0" skipped="0" time="0.003">
-        <testcase classname="tests/unit/infrastructure/database/drizzle/schema.test.ts" name="Database Schema &gt; Users Table &gt; 正しいテーブル名を持つべき" time="0">
-        </testcase>
-        <testcase classname="tests/unit/infrastructure/database/drizzle/schema.test.ts" name="Database Schema &gt; Users Table &gt; 必要なカラムを持つべき" time="0.001">
-        </testcase>
-        <testcase classname="tests/unit/infrastructure/database/drizzle/schema.test.ts" name="Database Schema &gt; Users Table &gt; idカラムがプライマリーキーであるべき" time="0">
-        </testcase>
-        <testcase classname="tests/unit/infrastructure/database/drizzle/schema.test.ts" name="Database Schema &gt; Users Table &gt; emailカラムがユニークであるべき" time="0">
-        </testcase>
-        <testcase classname="tests/unit/infrastructure/database/drizzle/schema.test.ts" name="Database Schema &gt; Tasks Table &gt; 正しいテーブル名を持つべき" time="0">
-        </testcase>
-        <testcase classname="tests/unit/infrastructure/database/drizzle/schema.test.ts" name="Database Schema &gt; Tasks Table &gt; 必要なカラムを持つべき" time="0.001">
-        </testcase>
-        <testcase classname="tests/unit/infrastructure/database/drizzle/schema.test.ts" name="Database Schema &gt; Tasks Table &gt; idカラムがプライマリーキーであるべき" time="0">
-        </testcase>
-        <testcase classname="tests/unit/infrastructure/database/drizzle/schema.test.ts" name="Database Schema &gt; Tasks Table &gt; userIdカラムは外部キー制約を持つべき" time="0">
-        </testcase>
-    </testsuite>
-    <testsuite name="tests/unit/infrastructure/database/drizzle/task/schema.test.ts" timestamp="2025-04-25T07:40:14.560Z" hostname="ommp2021.local" tests="2" failures="0" errors="0" skipped="2" time="0">
-        <testcase classname="tests/unit/infrastructure/database/drizzle/task/schema.test.ts" name="タスクスキーマ &gt; タスクテーブルが存在するべき" time="0">
-            <skipped/>
-        </testcase>
-        <testcase classname="tests/unit/infrastructure/database/drizzle/task/schema.test.ts" name="タスクスキーマ &gt; Task型とNewTask型が定義されているべき" time="0">
-            <skipped/>
         </testcase>
     </testsuite>
 </testsuites>
