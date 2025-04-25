@@ -19,6 +19,12 @@ concurrency:
   group: integration-tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# ジョブに必要な権限を追加
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   api-tests:
     name: API統合テスト

@@ -16,6 +16,12 @@ on:
     types: [labeled]
     branches: [main]
 
+# ジョブに必要な権限を追加
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   e2e-tests:
     # PRに 'needs-e2e-tests' ラベルが付いた場合、または手動実行時
