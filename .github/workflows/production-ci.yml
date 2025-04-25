@@ -8,11 +8,13 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'rules/**'
   pull_request:
     branches: [main]
     paths-ignore:
       - '**.md'
       - 'docs/**'
+      - 'rules/**'
   workflow_dispatch: # 手動実行も可能
 
 # 実行の最適化（同時実行を防止）

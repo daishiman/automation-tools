@@ -16,6 +16,10 @@ on:
     branches: [develop, main]
     paths:
       - 'db/migrations/**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
 
 jobs:
   migrate:

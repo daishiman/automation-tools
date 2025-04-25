@@ -15,6 +15,10 @@ on:
   pull_request:
     types: [labeled]
     branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
 
 # ジョブに必要な権限を追加
 permissions:
