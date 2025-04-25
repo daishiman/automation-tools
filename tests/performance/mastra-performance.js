@@ -49,7 +49,9 @@ const metrics = {
 
     console.log('\n===== パフォーマンステスト結果 =====');
     console.log(`総実行時間: ${this.endTime - this.startTime}ms`);
-    console.log(`メモリ使用量: ${(this.memory.end.heapUsed - this.memory.start.heapUsed) / 1024 / 1024}MB`);
+    console.log(
+      `メモリ使用量: ${(this.memory.end.heapUsed - this.memory.start.heapUsed) / 1024 / 1024}MB`
+    );
 
     console.log('\n----- 詳細メトリクス -----');
     Object.entries(this.measurements).forEach(([name, data]) => {
@@ -67,7 +69,7 @@ const metrics = {
     });
 
     console.log('\n=============================');
-  }
+  },
 };
 
 // テキスト生成のモック実装
@@ -76,7 +78,7 @@ const generateText = async (prompt) => {
   const startMemory = process.memoryUsage().heapUsed;
 
   // 生成処理のシミュレーション
-  await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 100));
+  await new Promise((resolve) => setTimeout(resolve, 100 + Math.random() * 100));
 
   const response = {
     text: `Mastra generated: ${prompt}`,
@@ -162,18 +164,24 @@ const tests = [
     });
 
     assert(results.length === iterations, `結果の数が期待値と異なります: ${results.length}`);
-    console.log(`  ${iterations}回の連続リクエスト完了 (平均: ${(totalDuration / iterations).toFixed(2)}ms/リクエスト)`);
+    console.log(
+      `  ${iterations}回の連続リクエスト完了 (平均: ${(totalDuration / iterations).toFixed(
+        2
+      )}ms/リクエスト)`
+    );
   },
 
   // テスト3: 並列リクエストのパフォーマンス
   async () => {
     const parallelCount = 3;
-    const prompts = Array(parallelCount).fill().map((_, i) => `並列テスト${i}用のプロンプト`);
+    const prompts = Array(parallelCount)
+      .fill()
+      .map((_, i) => `並列テスト${i}用のプロンプト`);
 
     const startTime = Date.now();
     const startMemory = process.memoryUsage().heapUsed;
 
-    const results = await Promise.all(prompts.map(p => generateText(p)));
+    const results = await Promise.all(prompts.map((p) => generateText(p)));
 
     const endTime = Date.now();
     const endMemory = process.memoryUsage().heapUsed;
@@ -190,7 +198,7 @@ const tests = [
 
     assert(results.length === parallelCount, '結果の数が不正です');
     console.log(`  ${parallelCount}個の並列リクエスト完了 (合計: ${totalDuration}ms)`);
-  }
+  },
 ];
 
 // メイン実行
@@ -200,7 +208,7 @@ async function main() {
   let failed = 0;
 
   for (let i = 0; i < tests.length; i++) {
-    if (await runTest(`テスト ${i+1}`, tests[i])) {
+    if (await runTest(`テスト ${i + 1}`, tests[i])) {
       passed++;
     } else {
       failed++;
@@ -214,9 +222,11 @@ async function main() {
 }
 
 // スクリプト実行
-main().then(success => {
-  process.exit(success ? 0 : 1);
-}).catch(error => {
-  console.error('テスト実行中にエラーが発生しました:', error);
-  process.exit(1);
-});
+main()
+  .then((success) => {
+    process.exit(success ? 0 : 1);
+  })
+  .catch((error) => {
+    console.error('テスト実行中にエラーが発生しました:', error);
+    process.exit(1);
+  });
