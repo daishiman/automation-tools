@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { UserRepository } from '@/infrastructure/database/repositories/user/index';
+import { UserRepository } from '@/infrastructure/database/repositories/user';
 import { User } from '@/infrastructure/database/drizzle/user/schema';
 import type { D1Database } from '@cloudflare/workers-types';
 // 使用していないのでインポートを削除
