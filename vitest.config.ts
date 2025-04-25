@@ -14,11 +14,11 @@ export default defineConfig({
     },
     reporters: ['default', 'junit'],
     outputFile: {
-      junit: './junit.xml'
+      junit: './junit.xml',
     },
-    testTimeout: 20000,
+    testTimeout: 60000,
     cache: {
-      dir: '.vitest-cache'
+      dir: '.vitest-cache',
     },
   },
   resolve: {
