@@ -1,0 +1,25 @@
+{
+  "users": [
+    {
+      "id": "user_123",
+      "name": "テストユーザー1",
+      "email": "user1@example.com",
+      "createdAt": "2023-01-01T00:00:00.000Z",
+      "updatedAt": "2023-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "user_456",
+      "name": "テストユーザー2",
+      "email": "user2@example.com",
+      "createdAt": "2023-01-02T00:00:00.000Z",
+      "updatedAt": "2023-01-02T00:00:00.000Z"
+    },
+    {
+      "id": "user_789",
+      "name": "管理者ユーザー",
+      "email": "admin@example.com",
+      "createdAt": "2023-01-03T00:00:00.000Z",
+      "updatedAt": "2023-01-03T00:00:00.000Z"
+    }
+  ]
+}

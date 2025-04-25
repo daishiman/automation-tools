@@ -1,0 +1,74 @@
+{
+  "auth": {
+    "login": {
+      "success": {
+        "token": "mock-jwt-token-123456",
+        "user": {
+          "id": "user_123",
+          "name": "テストユーザー1",
+          "email": "user1@example.com"
+        }
+      },
+      "error": {
+        "status": 401,
+        "message": "無効なメールアドレスまたはパスワードです"
+      }
+    },
+    "register": {
+      "success": {
+        "token": "mock-jwt-token-789012",
+        "user": {
+          "id": "user_new",
+          "name": "新規ユーザー",
+          "email": "newuser@example.com"
+        }
+      },
+      "error": {
+        "status": 400,
+        "message": "このメールアドレスは既に使用されています"
+      }
+    }
+  },
+  "users": {
+    "getById": {
+      "success": {
+        "id": "user_123",
+        "name": "テストユーザー1",
+        "email": "user1@example.com",
+        "createdAt": "2023-01-01T00:00:00.000Z",
+        "updatedAt": "2023-01-01T00:00:00.000Z"
+      },
+      "notFound": {
+        "status": 404,
+        "message": "ユーザーが見つかりません"
+      }
+    },
+    "update": {
+      "success": {
+        "id": "user_123",
+        "name": "更新ユーザー名",
+        "email": "user1@example.com",
+        "createdAt": "2023-01-01T00:00:00.000Z",
+        "updatedAt": "2023-01-10T00:00:00.000Z"
+      },
+      "error": {
+        "status": 400,
+        "message": "無効なデータが提供されました"
+      }
+    }
+  },
+  "mastra": {
+    "generate": {
+      "success": {
+        "id": "gen_abc123",
+        "text": "生成されたテキストの例です。これはモックレスポンスです。",
+        "tokens": 128,
+        "model": "mastra-v1"
+      },
+      "error": {
+        "status": 500,
+        "message": "生成中にエラーが発生しました"
+      }
+    }
+  }
+}
