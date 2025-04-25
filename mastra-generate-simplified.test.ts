@@ -45,9 +45,12 @@ const generateText = async (prompt: string): Promise<GenerationResult> => {
   // 実際の生成をシミュレート
   await new Promise((resolve) => setTimeout(resolve, 100));
 
+  // トークン計算を改善 - 日本語文字列もしっかりカウント
+  const tokenCount = Math.max(prompt.length / 2, prompt.split(/\s+/).length * 2);
+
   const result: GenerationResult = {
     text: `Generated response for: ${prompt}`,
-    tokens: prompt.split(' ').length * 2,
+    tokens: tokenCount,
     generationTime: 100,
   };
 
