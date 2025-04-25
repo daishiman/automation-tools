@@ -50,7 +50,7 @@ function generateJobsHTML(jobs, logs) {
 
   let html = '<div class="jobs">';
 
-  jobs.forEach(job => {
+  jobs.forEach((job) => {
     const statusColor = getStatusColor(job.status, job.conclusion);
     const jobLog = logs && logs[job.name] ? logs[job.name] : null;
 
@@ -58,11 +58,17 @@ function generateJobsHTML(jobs, logs) {
       <div class="job-card">
         <div class="job-header" style="border-left: 4px solid ${statusColor}">
           <h3>${job.name}</h3>
-          <div class="job-status" style="background-color: ${statusColor}">${job.conclusion || job.status}</div>
+          <div class="job-status" style="background-color: ${statusColor}">${
+            job.conclusion || job.status
+          }</div>
         </div>
         <div class="job-details">
-          <div><strong>開始:</strong> ${job.started_at ? new Date(job.started_at).toLocaleString() : '未開始'}</div>
-          <div><strong>終了:</strong> ${job.completed_at ? new Date(job.completed_at).toLocaleString() : '未完了'}</div>
+          <div><strong>開始:</strong> ${
+            job.started_at ? new Date(job.started_at).toLocaleString() : '未開始'
+          }</div>
+          <div><strong>終了:</strong> ${
+            job.completed_at ? new Date(job.completed_at).toLocaleString() : '未完了'
+          }</div>
         </div>
         <div class="job-steps">
           <h4>ステップ:</h4>
@@ -70,7 +76,9 @@ function generateJobsHTML(jobs, logs) {
             ${generateStepsHTML(job.steps)}
           </ul>
         </div>
-        ${job.conclusion === 'failure' ? `
+        ${
+          job.conclusion === 'failure'
+            ? `
         <div class="log-section">
           <details ${job.conclusion === 'failure' ? 'open' : ''}>
             <summary>ログを表示</summary>
@@ -78,7 +86,9 @@ function generateJobsHTML(jobs, logs) {
               <pre>${jobLog ? formatLog(jobLog) : 'ログが利用できません'}</pre>
             </div>
           </details>
-        </div>` : ''}
+        </div>`
+            : ''
+        }
       </div>
     `;
   });
@@ -102,14 +112,18 @@ function formatLog(log) {
     .replace(/'/g, '&#039;');
 
   // エラーメッセージを強調
-  escapedLog = escapedLog.replace(/(error|Error|ERROR|失敗|エラー)/g, '<span class="error-text">$1</span>');
+  escapedLog = escapedLog.replace(
+    /(error|Error|ERROR|失敗|エラー)/g,
+    '<span class="error-text">$1</span>'
+  );
 
   // 行数を制限（最大3000行）
   const lines = escapedLog.split('\n');
   if (lines.length > 3000) {
-    escapedLog = lines.slice(0, 1000).join('\n') +
-                '\n...[省略されました]...\n' +
-                lines.slice(lines.length - 2000).join('\n');
+    escapedLog =
+      lines.slice(0, 1000).join('\n') +
+      '\n...[省略されました]...\n' +
+      lines.slice(lines.length - 2000).join('\n');
   }
 
   return escapedLog;
@@ -125,13 +139,15 @@ function generateStepsHTML(steps) {
 
   let html = '';
 
-  steps.forEach(step => {
+  steps.forEach((step) => {
     const statusColor = getStatusColor(step.status, step.conclusion);
 
     html += `
       <li class="step-item" style="border-left: 4px solid ${statusColor}">
         <div class="step-name">${step.number}. ${step.name}</div>
-        <div class="step-status" style="background-color: ${statusColor}">${step.conclusion || step.status}</div>
+        <div class="step-status" style="background-color: ${statusColor}">${
+          step.conclusion || step.status
+        }</div>
       </li>
     `;
   });
@@ -426,7 +442,7 @@ function generateHTMLReport(data) {
   let cancelledCount = 0;
   let inProgressCount = 0;
 
-  data.forEach(run => {
+  data.forEach((run) => {
     if (run.status === 'completed') {
       if (run.conclusion === 'success') successCount++;
       else if (run.conclusion === 'failure') failureCount++;
@@ -472,9 +488,9 @@ function generateHTMLReport(data) {
   // ワークフロー実行の詳細部分
   let workflowsContent = '';
 
-  data.forEach(run => {
+  data.forEach((run) => {
     const statusColor = getStatusColor(run.status, run.conclusion);
-    const hasFailedJobs = run.jobs.some(job => job.conclusion === 'failure');
+    const hasFailedJobs = run.jobs.some((job) => job.conclusion === 'failure');
 
     workflowsContent += `
       <div class="workflow-card">
@@ -500,7 +516,11 @@ function generateHTMLReport(data) {
             </div>
           </div>
           <h3>ジョブ</h3>
-          ${hasFailedJobs ? '<div class="error-banner">このワークフローには失敗したジョブがあります</div>' : ''}
+          ${
+            hasFailedJobs
+              ? '<div class="error-banner">このワークフローには失敗したジョブがあります</div>'
+              : ''
+          }
           ${generateJobsHTML(run.jobs, run.logs)}
         </div>
       </div>
@@ -566,7 +586,7 @@ async function main() {
 }
 
 // スクリプトの実行
-main().catch(error => {
+main().catch((error) => {
   console.error('エラーが発生しました:', error);
   process.exit(1);
 });

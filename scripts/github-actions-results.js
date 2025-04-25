@@ -27,8 +27,14 @@ dotenv.config();
 
 // GitHub API関連の設定
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const OWNER = process.env.GITHUB_OWNER || process.env.GITHUB_REPOSITORY_OWNER || 'デフォルトのオーナー名を設定してください';
-const REPO = process.env.GITHUB_REPO || process.env.GITHUB_REPOSITORY_NAME || 'デフォルトのリポジトリ名を設定してください';
+const OWNER =
+  process.env.GITHUB_OWNER ||
+  process.env.GITHUB_REPOSITORY_OWNER ||
+  'デフォルトのオーナー名を設定してください';
+const REPO =
+  process.env.GITHUB_REPO ||
+  process.env.GITHUB_REPOSITORY_NAME ||
+  'デフォルトのリポジトリ名を設定してください';
 const OUTPUT_DIR = process.env.OUTPUT_DIR || 'github-actions-results';
 const LOGS_DIR = path.join(OUTPUT_DIR, 'logs');
 
@@ -60,26 +66,30 @@ function setupConsoleLogging() {
   logStream = fs.createWriteStream(CONSOLE_LOG_FILE);
 
   // console.logをオーバーライド
-  console.log = function() {
+  console.log = function () {
     // オリジナルのconsole.logを呼び出し
     originalConsoleLog.apply(console, arguments);
 
     // 引数を文字列化してログファイルに書き込み
-    const text = Array.from(arguments).map(arg =>
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-    ).join(' ') + '\n';
+    const text =
+      Array.from(arguments)
+        .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)))
+        .join(' ') + '\n';
     logStream.write(text);
   };
 
   // console.errorをオーバーライド
-  console.error = function() {
+  console.error = function () {
     // オリジナルのconsole.errorを呼び出し
     originalConsoleError.apply(console, arguments);
 
     // エラーを赤色表示するためのANSIエスケープコードを除去
-    const text = '[ERROR] ' + Array.from(arguments).map(arg =>
-      typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-    ).join(' ') + '\n';
+    const text =
+      '[ERROR] ' +
+      Array.from(arguments)
+        .map((arg) => (typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)))
+        .join(' ') +
+      '\n';
     logStream.write(text);
   };
 
@@ -261,7 +271,7 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber) {
 
         // まずジョブ名のリストを取得（ファイル名からジョブ名を抽出）
         const jobNames = new Set();
-        zipEntries.forEach(entry => {
+        zipEntries.forEach((entry) => {
           if (entry.entryName.endsWith('.txt') && !entry.isDirectory) {
             // エントリ名からジョブ名を抽出（パスの最後の部分から.txtを除いた部分）
             const nameParts = entry.entryName.split('/');
@@ -277,10 +287,11 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber) {
           logContent += `\n--- JOB: ${jobName} ---\n\n`;
 
           // このジョブに関連するすべてのファイルを見つける
-          const jobFiles = zipEntries.filter(entry =>
-            entry.entryName.endsWith('.txt') &&
-            !entry.isDirectory &&
-            entry.entryName.includes(jobName)
+          const jobFiles = zipEntries.filter(
+            (entry) =>
+              entry.entryName.endsWith('.txt') &&
+              !entry.isDirectory &&
+              entry.entryName.includes(jobName)
           );
 
           // ファイルをステップ番号順にソート
@@ -299,7 +310,9 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber) {
                 content = file.getData().toString('utf8');
               } catch (encodingError) {
                 // UTF-8デコードに失敗した場合、他のエンコーディングを試みる
-                console.warn(`UTF-8での読み取りに失敗しました: ${file.entryName}、他のエンコーディングを試みます`);
+                console.warn(
+                  `UTF-8での読み取りに失敗しました: ${file.entryName}、他のエンコーディングを試みます`
+                );
                 try {
                   content = iconv.decode(file.getData(), 'shift-jis');
                 } catch (iconvError) {
@@ -364,7 +377,7 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber) {
 
               // ジョブ名のリストを取得
               const jobNames = new Set();
-              zipEntries.forEach(entry => {
+              zipEntries.forEach((entry) => {
                 if (entry.entryName.endsWith('.txt') && !entry.isDirectory) {
                   const nameParts = entry.entryName.split('/');
                   const fileName = nameParts[nameParts.length - 1];
@@ -378,10 +391,11 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber) {
                 logContent += `\n--- JOB: ${jobName} ---\n\n`;
 
                 // このジョブに関連するすべてのファイルを見つける
-                const jobFiles = zipEntries.filter(entry =>
-                  entry.entryName.endsWith('.txt') &&
-                  !entry.isDirectory &&
-                  entry.entryName.includes(jobName)
+                const jobFiles = zipEntries.filter(
+                  (entry) =>
+                    entry.entryName.endsWith('.txt') &&
+                    !entry.isDirectory &&
+                    entry.entryName.includes(jobName)
                 );
 
                 // ファイルをステップ番号順にソート
@@ -464,7 +478,7 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber) {
 
           // ジョブ名のリストを取得
           const jobNames = new Set();
-          zipEntries.forEach(entry => {
+          zipEntries.forEach((entry) => {
             if (entry.entryName.endsWith('.txt') && !entry.isDirectory) {
               const nameParts = entry.entryName.split('/');
               const fileName = nameParts[nameParts.length - 1];
@@ -478,10 +492,11 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber) {
             logContent += `\n--- JOB: ${jobName} ---\n\n`;
 
             // このジョブに関連するすべてのファイルを見つける
-            const jobFiles = zipEntries.filter(entry =>
-              entry.entryName.endsWith('.txt') &&
-              !entry.isDirectory &&
-              entry.entryName.includes(jobName)
+            const jobFiles = zipEntries.filter(
+              (entry) =>
+                entry.entryName.endsWith('.txt') &&
+                !entry.isDirectory &&
+                entry.entryName.includes(jobName)
             );
 
             // ファイルをステップ番号順にソート
@@ -569,14 +584,17 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber) {
 
       for (const job of jobs) {
         // 簡易的なジョブ情報を提供
-        const jobStatus = job.conclusion === 'success' ? '成功' : job.conclusion === 'failure' ? '失敗' : '不明';
+        const jobStatus =
+          job.conclusion === 'success' ? '成功' : job.conclusion === 'failure' ? '失敗' : '不明';
         const jobLog = `### ジョブ: ${job.name} (ID: ${job.id})
 ステータス: ${jobStatus}
 開始時間: ${job.started_at || '不明'}
 終了時間: ${job.completed_at || '不明'}
 
 #### ステップ:
-${job.steps.map(step => `${step.number}. ${step.name}: ${step.conclusion || step.status}`).join('\n')}
+${job.steps
+  .map((step) => `${step.number}. ${step.name}: ${step.conclusion || step.status}`)
+  .join('\n')}
 
 注意: ログの取得に失敗しました。
 失敗の詳細はGitHubのActions実行画面で確認してください:
@@ -626,14 +644,17 @@ async function getAlternativeLogsContent(runId) {
         console.log(`ジョブ「${job.name}」(ID: ${job.id})のログを取得中...`);
 
         // ログの内容をモックデータで代用（APIの制限により実際のログは取得できない場合）
-        const jobStatus = job.conclusion === 'success' ? '成功' : job.conclusion === 'failure' ? '失敗' : '不明';
+        const jobStatus =
+          job.conclusion === 'success' ? '成功' : job.conclusion === 'failure' ? '失敗' : '不明';
         const jobLog = `### ジョブ: ${job.name} (ID: ${job.id})
 ステータス: ${jobStatus}
 開始時間: ${job.started_at || '不明'}
 終了時間: ${job.completed_at || '不明'}
 
 #### ステップ:
-${job.steps.map(step => `${step.number}. ${step.name}: ${step.conclusion || step.status}`).join('\n')}
+${job.steps
+  .map((step) => `${step.number}. ${step.name}: ${step.conclusion || step.status}`)
+  .join('\n')}
 
 注意: GitHubのAPIの制限により、詳細なログは取得できませんでした。
 失敗の詳細はGitHubのActions実行画面で確認してください:
@@ -719,8 +740,11 @@ async function main() {
     saveResultsToFile(workflows, 'workflows.json');
 
     // ワークフロー一覧を統合ログに追加
-    const workflowSummary = workflows.map(w => `- ${w.name} (ID: ${w.id})`).join('\n');
-    appendToMergedLog('ワークフロー一覧', `${workflows.length}個のワークフローが見つかりました。\n\n${workflowSummary}`);
+    const workflowSummary = workflows.map((w) => `- ${w.name} (ID: ${w.id})`).join('\n');
+    appendToMergedLog(
+      'ワークフロー一覧',
+      `${workflows.length}個のワークフローが見つかりました。\n\n${workflowSummary}`
+    );
 
     const results = [];
 
@@ -751,13 +775,13 @@ async function main() {
             conclusion: run.conclusion,
             created_at: run.created_at,
             updated_at: run.updated_at,
-            jobs: jobs.map(job => ({
+            jobs: jobs.map((job) => ({
               name: job.name,
               status: job.status,
               conclusion: job.conclusion,
               started_at: job.started_at,
               completed_at: job.completed_at,
-              steps: job.steps.map(step => ({
+              steps: job.steps.map((step) => ({
                 name: step.name,
                 status: step.status,
                 conclusion: step.conclusion,
@@ -769,7 +793,7 @@ async function main() {
       }
     } else {
       // 特定のワークフローの実行結果を取得
-      const workflowInfo = workflows.find(w => w.id.toString() === workflowId);
+      const workflowInfo = workflows.find((w) => w.id.toString() === workflowId);
       if (!workflowInfo) {
         console.error(`ワークフローID: ${workflowId}が見つかりません。`);
         process.exit(1);
@@ -798,13 +822,13 @@ async function main() {
           conclusion: run.conclusion,
           created_at: run.created_at,
           updated_at: run.updated_at,
-          jobs: jobs.map(job => ({
+          jobs: jobs.map((job) => ({
             name: job.name,
             status: job.status,
             conclusion: job.conclusion,
             started_at: job.started_at,
             completed_at: job.completed_at,
-            steps: job.steps.map(step => ({
+            steps: job.steps.map((step) => ({
               name: step.name,
               status: step.status,
               conclusion: step.conclusion,
@@ -817,14 +841,23 @@ async function main() {
 
     // 結果の概要を統合ログに追加
     if (results.length > 0) {
-      const runSummary = results.map(run =>
-        `- ワークフロー: ${run.workflow_name}, 実行番号: ${run.run_number}, 結果: ${run.conclusion || run.status}, イベント: ${run.event}`
-      ).join('\n');
+      const runSummary = results
+        .map(
+          (run) =>
+            `- ワークフロー: ${run.workflow_name}, 実行番号: ${run.run_number}, 結果: ${
+              run.conclusion || run.status
+            }, イベント: ${run.event}`
+        )
+        .join('\n');
 
-      appendToMergedLog('実行結果の概要', `${results.length}件の実行結果を取得しました。\n\n${runSummary}`);
+      appendToMergedLog(
+        '実行結果の概要',
+        `${results.length}件の実行結果を取得しました。\n\n${runSummary}`
+      );
 
       // 結果の保存
-      const filename = workflowId === 'all' ? 'all-workflow-results.json' : `workflow-${workflowId}-results.json`;
+      const filename =
+        workflowId === 'all' ? 'all-workflow-results.json' : `workflow-${workflowId}-results.json`;
       saveResultsToFile(results, filename);
       console.log(`${results.length}件の実行結果を取得しました。`);
     } else {
@@ -841,10 +874,13 @@ async function main() {
 }
 
 // スクリプトの実行
-main().catch(error => {
+main().catch((error) => {
   console.error('エラーが発生しました:', error);
   if (mergedLogStream) {
-    appendToMergedLog('実行エラー', `スクリプトの実行中にエラーが発生しました: ${error.message}\n${error.stack}`);
+    appendToMergedLog(
+      '実行エラー',
+      `スクリプトの実行中にエラーが発生しました: ${error.message}\n${error.stack}`
+    );
     closeMergedLog();
   }
   cleanupConsoleLogging(); // エラー時にもログをクリーンアップ

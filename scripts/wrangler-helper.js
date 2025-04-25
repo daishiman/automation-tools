@@ -16,7 +16,7 @@ function parseArgs() {
   let configFile = ''; // 設定ファイルパス
 
   // 引数を解析
-  args.forEach(arg => {
+  args.forEach((arg) => {
     // --mode=xxx 形式の引数
     if (arg.startsWith('--mode=')) {
       command = arg.split('=')[1];
@@ -47,37 +47,37 @@ const { command, environment, configFile } = parseArgs();
 
 // 環境ごとの設定ファイル
 const envFiles = {
-  preview: '.env.development',    // 開発環境（Cloudflare Pagesではpreview）
-  production: '.env.production',  // 本番環境
-  local: '.env.local',            // ローカル開発
+  preview: '.env.development', // 開発環境（Cloudflare Pagesではpreview）
+  production: '.env.production', // 本番環境
+  local: '.env.local', // ローカル開発
 };
 
 // 環境とブランチのマッピング
 const branchMap = {
-  preview: 'develop',     // 開発環境はdevelopブランチ
-  production: 'main',     // 本番環境はmainブランチ
-  local: 'local',         // ローカル環境
+  preview: 'develop', // 開発環境はdevelopブランチ
+  production: 'main', // 本番環境はmainブランチ
+  local: 'local', // ローカル環境
 };
 
 // 環境別のデータベース名
 const dbNames = {
-  preview: 'automationa-tools-dev-db',     // 開発環境用DB名
+  preview: 'automationa-tools-dev-db', // 開発環境用DB名
   production: 'automationa-tools-prod-db', // 本番環境用DB名
-  local: 'automationa-tools-local-db',     // ローカル環境用DB名
+  local: 'automationa-tools-local-db', // ローカル環境用DB名
 };
 
 // R2バケット名
 const r2BucketNames = {
-  preview: 'dev-automationa-tools-storage',     // 開発環境用R2バケット
-  production: 'automationa-tools-storage',      // 本番環境用R2バケット
-  local: 'local-automationa-tools-storage',     // ローカル環境用R2バケット
+  preview: 'dev-automationa-tools-storage', // 開発環境用R2バケット
+  production: 'automationa-tools-storage', // 本番環境用R2バケット
+  local: 'local-automationa-tools-storage', // ローカル環境用R2バケット
 };
 
 // R2バインディング名
 const r2BindingNames = {
-  preview: 'R2_STORAGE',    // 開発環境でのバインディング名
+  preview: 'R2_STORAGE', // 開発環境でのバインディング名
   production: 'R2_STORAGE', // 本番環境でのバインディング名
-  local: 'R2_STORAGE',      // ローカル環境でのバインディング名
+  local: 'R2_STORAGE', // ローカル環境でのバインディング名
 };
 
 /**
@@ -154,13 +154,15 @@ function printLLMConfig() {
   // 各LLMプロバイダーの設定を表示
   const providers = ['OPENAI', 'ANTHROPIC', 'GOOGLE', 'MISTRAL', 'COHERE'];
 
-  providers.forEach(provider => {
+  providers.forEach((provider) => {
     const apiKey = process.env[`${provider}_API_KEY`];
     if (apiKey) {
       console.log(`\n${provider}設定:`);
       console.log(`- API URL: ${process.env[`${provider}_API_URL`] || 'デフォルト'}`);
       console.log(`- デフォルトモデル: ${process.env[`${provider}_DEFAULT_MODEL`] || 'undefined'}`);
-      console.log(`- フォールバックモデル: ${process.env[`${provider}_FALLBACK_MODEL`] || 'undefined'}`);
+      console.log(
+        `- フォールバックモデル: ${process.env[`${provider}_FALLBACK_MODEL`] || 'undefined'}`
+      );
     }
   });
 
@@ -169,7 +171,9 @@ function printLLMConfig() {
 
 // メイン処理
 function main() {
-  console.log(`コマンド: ${command}, 環境: ${environment}${configFile ? ', 設定ファイル: ' + configFile : ''}`);
+  console.log(
+    `コマンド: ${command}, 環境: ${environment}${configFile ? ', 設定ファイル: ' + configFile : ''}`
+  );
 
   // 設定ファイルが指定されている場合は環境ファイルのデフォルトをlocalに
   const defaultEnv = configFile ? 'local' : 'preview';

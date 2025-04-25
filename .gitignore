@@ -75,6 +75,10 @@ tmp/
 *.swp
 *.swo
 
+# GitHub Actions関連
+github-actions-results/
+github-actions-reports/
+
 # 重要：これらのファイルは無視しないでください
 # package.json
 # pnpm-lock.yaml

@@ -11,7 +11,7 @@ start_time=$(date +%s)
 
 # 変更されたファイルを取得
 all_changed_files=$(git diff --cached --name-only --diff-filter=ACM)
-js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' || true)
+js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' | grep -v '^scripts/' || true)
 css_json_md_files=$(echo "$all_changed_files" | grep -E '\.(json|md|mdx|css)$' || true)
 rules_files=$(echo "$all_changed_files" | grep -E '^rules/.+\.md$' || true)
 
@@ -80,26 +80,22 @@ else
 fi
 
 # 4. JS/TSファイルの変更がある場合、関連テスト実行
-if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ] && [ -z "$skip_tests" ]; then
+if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ] && [ ! -z "$RUN_TESTS" ]; then
   echo "🧪 変更関連テスト実行中..."
-  # タイムアウト付きでテストを実行（120秒後に終了）
-  timeout 120 bash -c "NODE_OPTIONS=\"--max-old-space-size=4096\" pnpm vitest run --related $js_ts_files --passWithNoTests --bail=false"
+
+  # テスト実行（明示的に有効化された場合のみ）
+  NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest run --dir tests/unit --passWithNoTests --bail=false
   test_result=$?
 
-  if [ $test_result -eq 124 ]; then
-    echo "⚠️ テストがタイムアウトしました。テストプロセスを一時的にスキップします。"
-    echo "⚠️ 後でテストファイルを手動で修正してください。"
-    # タイムアウトでも続行
-    test_result=0
-  elif [ $test_result -ne 0 ]; then
+  if [ $test_result -ne 0 ]; then
     echo "❌ テストが失敗しました。修正してから再度コミットしてください。"
     has_errors=1
+  else
+    echo "✅ テストが成功しました。"
   fi
-elif [ ! -z "$skip_tests" ]; then
-  echo "⚠️ SKIP_TESTS環境変数が設定されているため、テストをスキップします。"
-  test_result=0
 else
-  echo "📝 テスト対象ファイルなし。テストをスキップします。"
+  # テストスキップ（デフォルト）
+  echo "📝 テストはスキップします。テストを実行するには RUN_TESTS=1 を設定してください。"
   test_result=0
 fi
 

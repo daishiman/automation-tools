@@ -48,11 +48,11 @@ jobs:
         run: |
           if grep -q '"test:api"' package.json; then
             echo "✅ test:api スクリプトが見つかりました"
-            pnpm test:api || echo "API統合テストに問題がありましたが、開発段階のため続行します"
+            pnpm test:api --exclude "scripts/**" || echo "API統合テストに問題がありましたが、開発段階のため続行します"
           else
             echo "⚠️ test:api スクリプトが見つかりません"
             echo "代替として integration ディレクトリ内の API テストを実行します"
-            pnpm vitest run "tests/integration/api" || echo "API統合テストに問題がありましたが、開発段階のため続行します"
+            pnpm vitest run "tests/integration/api" --exclude "scripts/**" || echo "API統合テストに問題がありましたが、開発段階のため続行します"
           fi
         env:
           # テスト用環境変数
@@ -120,11 +120,11 @@ jobs:
         run: |
           if grep -q '"test:integration"' package.json; then
             echo "✅ test:integration スクリプトが見つかりました"
-            pnpm test:integration || echo "ページ統合テストに問題がありましたが、開発段階のため続行します"
+            pnpm test:integration --exclude "scripts/**" || echo "ページ統合テストに問題がありましたが、開発段階のため続行します"
           else
             echo "⚠️ test:integration スクリプトが見つかりません"
             echo "代替として integration ディレクトリ内のテストを実行します"
-            pnpm vitest run "tests/integration" --exclude "tests/integration/api/**" --exclude "tests/integration/database/**" || echo "ページ統合テストに問題がありましたが、開発段階のため続行します"
+            pnpm vitest run "tests/integration" --exclude "tests/integration/api/**" --exclude "tests/integration/database/**" --exclude "scripts/**" || echo "ページ統合テストに問題がありましたが、開発段階のため続行します"
           fi
         env:
           # テスト用環境変数
@@ -198,14 +198,14 @@ jobs:
         run: |
           if grep -q '"test:db"' package.json; then
             echo "✅ test:db スクリプトが見つかりました"
-            pnpm test:db || echo "DB統合テストに問題がありましたが、開発段階のため続行します"
+            pnpm test:db --exclude "scripts/**" || echo "DB統合テストに問題がありましたが、開発段階のため続行します"
           elif grep -q '"test:db:integration"' package.json; then
             echo "✅ test:db:integration スクリプトが見つかりました"
-            pnpm test:db:integration || echo "DB統合テストに問題がありましたが、開発段階のため続行します"
+            pnpm test:db:integration --exclude "scripts/**" || echo "DB統合テストに問題がありましたが、開発段階のため続行します"
           else
             echo "⚠️ DB統合テスト用スクリプトが見つかりません"
             echo "代替として integration/database ディレクトリ内のテストを実行します"
-            pnpm vitest run "tests/integration/database" || echo "DB統合テストに問題がありましたが、開発段階のため続行します"
+            pnpm vitest run "tests/integration/database" --exclude "scripts/**" || echo "DB統合テストに問題がありましたが、開発段階のため続行します"
           fi
         env:
           # テスト用環境変数
@@ -237,6 +237,9 @@ jobs:
     needs: [api-tests, page-integration, db-integration]
     if: github.event_name == 'pull_request' && always()
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
     steps:
       - name: テスト結果を集計
         uses: actions/github-script@v6

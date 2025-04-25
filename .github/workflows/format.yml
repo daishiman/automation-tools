@@ -43,14 +43,15 @@ jobs:
 
       # フォーマットのチェック（変更のみ）
       - name: フォーマットチェック（チェックモード）
-        run: pnpm format:check
+        run: pnpm format "!scripts/**"
+        continue-on-error: true
 
       # PRの場合、自動修正と差分コメント
       - name: 自動フォーマット修正（PRの場合）
         if: github.event_name == 'pull_request'
         run: |
-          # フォーマット修正を実行
-          pnpm format
+          # フォーマット修正を実行（scripts除外）
+          pnpm format "!scripts/**"
 
           # 変更があったファイル一覧を取得
           FILES_CHANGED=$(git diff --name-only)

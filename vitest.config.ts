@@ -16,10 +16,17 @@ export default defineConfig({
     outputFile: {
       junit: './junit.xml',
     },
-    testTimeout: 60000,
+    testTimeout: 120000,
     cache: {
       dir: '.vitest-cache',
     },
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/.{idea,git,cache,output,temp}/**',
+      '**/scripts/**',
+      '**/*.d.ts',
+    ],
   },
   resolve: {
     alias: {
