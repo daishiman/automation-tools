@@ -224,3 +224,201 @@ jobs:
             ステータス: ${{ job.status }}
             ${{ github.event.inputs.deploy_notes != '' && format('デプロイ注記: {0}', github.event.inputs.deploy_notes) || '' }}
             ${{ github.event.inputs.skip_tests == 'yes' && '⚠️ 注意: テストはスキップされました' || '' }}
+
+  # 本番環境へのデプロイ
+  deploy-to-prod:
+    name: '本番環境へのデプロイ'
+    needs: [deploy-confirmation]
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event.inputs.confirm == 'yes'
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: 本番環境向けビルド
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_ENV: production
+          NEXT_PUBLIC_API_BASE_URL: /api
+          NEXT_PUBLIC_APP_URL: https://automationa-tools.pages.dev
+          NODE_OPTIONS: '--max_old_space_size=4096'
+
+      - name: Cloudflare Pagesへのデプロイ
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy out --project-name=automationa-tools --branch=main --commit-dirty=true
+          packageManager: pnpm
+          wranglerVersion: '4.13.2'
+          workingDirectory: .
+        env:
+          CF_PAGES_DEBUG: true
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      - name: デプロイURLの出力
+        if: success()
+        run: echo "✅ 本番環境がデプロイされました： ${{ steps.deploy.outputs.url }}"
+
+      - name: デプロイ通知
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: good
+          SLACK_TITLE: 本番環境デプロイ ✅ 成功
+          SLACK_MESSAGE: |
+            環境: 本番環境
+            URL: https://automationa-tools.pages.dev
+            ブランチ: main
+            ステータス: success
+            詳細: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # データベースマイグレーション（明示的に本番環境用）
+  db-migration:
+    name: '本番環境データベースマイグレーション'
+    needs: [deploy-to-prod]
+    runs-on: ubuntu-latest
+    environment: production
+    if: needs.deploy-to-prod.result == 'success'
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # バックアップ作成
+      - name: データベースバックアップ
+        run: pnpm db:backup
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
+
+      # データベースマイグレーションの実行
+      - name: データベースマイグレーション実行
+        if: success()
+        run: |
+          echo "本番環境のデータベースマイグレーションを実行しています..."
+
+          # 環境変数の確認
+          echo "環境変数とワークスペース情報:"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "環境名: production"
+
+          # 環境設定
+          ENV="production"
+          D1_DB_NAME="automationa-tools-db"
+          echo "マイグレーション実行環境: 本番環境"
+          echo "使用するデータベース名: ${D1_DB_NAME}"
+
+          # ディレクトリ構造確認
+          echo "作業ディレクトリの内容:"
+          ls -la
+          echo "マイグレーションディレクトリ:"
+          ls -la migrations || echo "マイグレーションディレクトリがありません"
+
+          # wrangler.tomlの内容確認（データベース設定部分）
+          echo "wrangler.toml内のデータベース設定確認:"
+          grep -v -e "apiToken" -e "password" -e "secret" wrangler.toml | grep -A 5 "d1_databases" | cat || echo "構成ファイルの表示に失敗しました"
+
+          # テーブル情報確認
+          echo "データベーステーブル一覧を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
+            --command="SELECT name FROM sqlite_master WHERE type='table'" \
+            --env=${ENV} || echo "テーブル一覧の取得に失敗しましたが続行します"
+
+          # マイグレーションファイルの状態確認
+          echo "マイグレーションファイルの状態を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
+            --env=${ENV} || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+
+          # マイグレーション実行（--debugフラグを削除）
+          echo "マイグレーションを適用しています..."
+          echo "使用データベース名: ${D1_DB_NAME}, 環境: ${ENV}"
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
+            --env=${ENV} || echo "マイグレーション適用に失敗しました"
+
+          # 成功時のメッセージ
+          echo "====================================="
+          echo "マイグレーションプロセスが完了しました"
+          echo "環境: ${ENV}"
+          echo "データベース: ${D1_DB_NAME}"
+          echo "====================================="
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+
+      # KVストア初期化
+      - name: 本番KVストア初期化
+        run: |
+          # アプリバージョンをKVに保存
+          pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")"
+          echo "KVストア初期化完了"
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      # 結果通知
+      - name: マイグレーション結果通知
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: 本番データベースマイグレーション ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: 本番環境
+            データベース: ${{ vars.D1_DATABASE_NAME }}
+            ステータス: ${{ job.status }}

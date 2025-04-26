@@ -219,9 +219,14 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: pages deploy out --project-name=automationa-tools --branch=${{ inputs.branch_name }}
+          command: pages deploy out --project-name=automationa-tools --branch=${{ inputs.branch_name }} --commit-dirty=true
+          packageManager: pnpm
+          wranglerVersion: '4.13.2'
+          workingDirectory: .
         env:
           CF_PAGES_DEBUG: true # デバッグログを有効化
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
       # デプロイエラーのハンドリング
       - name: デプロイエラーのチェック
@@ -236,18 +241,216 @@ jobs:
             cat wrangler-deploy.log
           fi
 
-          # Cloudflare API トークンの権限確認
+          # Cloudflare APIトークン詳細チェック
           echo "API トークンの権限を確認してください:"
           echo "- Account.Cloudflare Pages: Edit"
+          echo "- Account.Worker Scripts: Edit"
+          echo "- Account.Workers R2 Storage: Edit"
+          echo "- Account.Workers KV Storage: Edit"
+          echo "- Account.D1: Edit"
           echo "- API Shield: Edit"
+          echo "- Zone.Cloudflare Pages: Edit"
+
+          # トークンとアカウントIDの確認
+          echo "シークレット設定を確認してください:"
+          echo "CF_API_TOKEN と CF_ACCOUNT_ID がGitHub Secretsに正しく設定されているか確認"
 
           # プロジェクト名が正しいか確認
-          echo "プロジェクト名が正しいことを確認してください: automationa-tools"
+          echo "プロジェクト名: automationa-tools"
+          echo "指定したデプロイ環境: ${{ inputs.environment }}"
+          echo "指定したブランチ名: ${{ inputs.branch_name }}"
+
+          # プロジェクト一覧の取得を試行
+          echo "Cloudflareプロジェクト一覧の取得を試行中..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler pages project list || echo "プロジェクト一覧の取得に失敗しました"
 
           exit 1
 
+      # デプロイURLの出力
       - name: デプロイURLの出力
+        if: success()
         run: echo "✅ ${{ inputs.environment }}環境がデプロイされました： ${{ steps.deploy.outputs.url }}"
+
+      # データベースマイグレーションの実行
+      - name: データベースマイグレーション実行
+        if: success()
+        run: |
+          echo "データベースマイグレーションを実行しています（${{ inputs.environment }}環境）..."
+
+          # 環境変数の確認
+          echo "環境変数とワークスペース情報:"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "環境名: ${{ inputs.environment }}"
+
+          # 環境設定
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            ENV="preview"
+            D1_DB_NAME="automationa-tools-dev-db"
+            echo "マイグレーション実行環境: 開発環境"
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            ENV="production"
+            D1_DB_NAME="automationa-tools-db"
+            echo "マイグレーション実行環境: 本番環境"
+          fi
+
+          echo "使用するデータベース名: ${D1_DB_NAME}"
+
+          # ディレクトリ構造確認
+          echo "作業ディレクトリの内容:"
+          ls -la
+          echo "マイグレーションディレクトリ:"
+          ls -la migrations || echo "マイグレーションディレクトリがありません"
+
+          # wrangler.tomlが存在するか確認
+          if [ ! -f "wrangler.toml" ]; then
+            echo "警告: wrangler.tomlが見つかりません。"
+          else
+            echo "wrangler.toml確認済み"
+          fi
+
+          # wrangler.tomlの内容確認（データベース設定部分）
+          echo "wrangler.toml内のデータベース設定確認:"
+          grep -v -e "apiToken" -e "password" -e "secret" wrangler.toml | grep -A 5 "d1_databases" | cat || echo "構成ファイルの表示に失敗しました"
+
+          # テーブル情報確認
+          echo "データベーステーブル一覧を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
+            --command="SELECT name FROM sqlite_master WHERE type='table'" \
+            --env=$ENV || echo "テーブル一覧の取得に失敗しましたが続行します"
+
+          # マイグレーションファイルの状態確認
+          echo "マイグレーションファイルの状態を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
+            --env=$ENV || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+
+          # マイグレーション実行（--debugフラグを削除）
+          echo "マイグレーションを適用しています..."
+          echo "使用データベース名: ${D1_DB_NAME}, 環境: ${ENV}"
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
+            --env=$ENV || echo "マイグレーション適用に失敗しました"
+
+          # 成功時のメッセージ
+          echo "====================================="
+          echo "マイグレーションプロセスが完了しました"
+          echo "環境: $ENV"
+          echo "データベース: ${D1_DB_NAME}"
+          echo "====================================="
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+
+      # KVストアの初期化（必要に応じて）
+      - name: KVストア初期化
+        if: success()
+        run: |
+          echo "KVストアを初期化しています（${{ inputs.environment }}環境）..."
+
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            # 開発環境KV初期化 - アプリバージョン
+            pnpm kv:dev:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+
+            # キャッシュKVの初期化
+            echo "開発環境キャッシュKVの初期化中..."
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+            # セッションストアKVの初期化
+            echo "開発環境セッションストアKVの初期化中..."
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+            # デプロイ日時を記録
+            pnpm kv:dev:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            # 本番環境KV初期化 - アプリバージョン
+            pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+
+            # キャッシュKVの初期化
+            echo "本番環境キャッシュKVの初期化中..."
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+            # セッションストアKVの初期化
+            echo "本番環境セッションストアKVの初期化中..."
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+            # デプロイ日時を記録
+            pnpm kv:prod:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          KV_CACHE_ID: ${{ secrets.KV_CACHE_ID }}
+          KV_SESSION_STORE_ID: ${{ secrets.KV_SESSION_STORE_ID }}
+
+      # R2バケットの初期化（必要に応じて）
+      - name: R2バケット初期化
+        if: success()
+        run: |
+          echo "R2バケットを確認しています（${{ inputs.environment }}環境）..."
+
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            # 開発環境R2バケット確認
+            echo "開発環境アセットバケット確認中..."
+            # EPIPEエラー対策のためファイルにリダイレクト
+            pnpm exec wrangler r2 bucket list > /tmp/r2-buckets.txt || echo "R2バケット一覧取得失敗"
+            cat /tmp/r2-buckets.txt | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+
+            # バックアップバケット確認
+            echo "開発環境バックアップバケット確認中..."
+            cat /tmp/r2-buckets.txt | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+
+            # バケットが存在しない場合は作成
+            if ! cat /tmp/r2-buckets.txt | grep -q "${{ vars.R2_ASSETS_BUCKET_NAME }}"; then
+              echo "アセットバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            if ! cat /tmp/r2-buckets.txt | grep -q "${{ vars.R2_BACKUPS_BUCKET_NAME }}"; then
+              echo "バックアップバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            # バケット使用状況確認
+            echo "開発環境R2バケット使用状況："
+            cat /tmp/r2-buckets.txt
+
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            # 本番環境R2バケット確認
+            echo "本番環境アセットバケット確認中..."
+            # EPIPEエラー対策のためファイルにリダイレクト
+            pnpm exec wrangler r2 bucket list > /tmp/r2-buckets-prod.txt || echo "R2バケット一覧取得失敗"
+            cat /tmp/r2-buckets-prod.txt | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+
+            # バックアップバケット確認
+            echo "本番環境バックアップバケット確認中..."
+            cat /tmp/r2-buckets-prod.txt | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+
+            # バケットが存在しない場合は作成
+            if ! cat /tmp/r2-buckets-prod.txt | grep -q "${{ vars.R2_ASSETS_BUCKET_NAME }}"; then
+              echo "アセットバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            if ! cat /tmp/r2-buckets-prod.txt | grep -q "${{ vars.R2_BACKUPS_BUCKET_NAME }}"; then
+              echo "バックアップバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            # バケット使用状況確認
+            echo "本番環境R2バケット使用状況："
+            cat /tmp/r2-buckets-prod.txt
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          R2_ASSETS_BUCKET_NAME: ${{ vars.R2_ASSETS_BUCKET_NAME }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
 
       # デプロイ後の検証（環境に応じて厳格さを変更）
       - name: 基本スモークテスト

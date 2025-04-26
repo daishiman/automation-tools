@@ -7,11 +7,15 @@ compatibility_flags = [ "nodejs_compat" ]
 pages_build_output_dir = "out"  # Cloudflare Pagesのビルド出力ディレクトリ
 # ビルドコマンドを削除（Pagesプロジェクトでは未サポート）
 
+# 環境変数の読み込み設定
+# - ローカル開発: .env.development/.env.productionから読み込み
+# - CI/CD (GitHub Actions): GitHub環境変数から読み込み
+
 # ===========================================================
 # 本番環境（production）設定
 # ===========================================================
 [env.production]
-env_path = ".env.production"
+env_path = ".env.production" # ローカル開発時は.env.productionから環境変数を読み込み
 
 # 環境変数設定（プロダクション）
 [env.production.vars]
@@ -23,33 +27,33 @@ NODE_ENV = "production"
 # D1データベース設定（プロダクション）
 [[env.production.d1_databases]]
 binding = "DB"  # バインディング名
-database_name = "${D1_DATABASE_NAME}"  # 環境変数から読み込み
-database_id = "${D1_DATABASE_ID}"
+database_name = "automationa-tools-db"  # 本番データベース名を直接指定
+database_id = "${D1_DATABASE_ID}"  # GitHub ActionsではGitHub Secretsから設定
 migrations_dir = "migrations"
 
 # KVネームスペース設定（プロダクション）
 [[env.production.kv_namespaces]]
 binding = "CACHE_PROD"  # 本番環境用キャッシュバインディング
-id = "${KV_CACHE_ID}"
+id = "${KV_CACHE_ID}"  # GitHub ActionsではGitHub Secretsから設定
 
 [[env.production.kv_namespaces]]
 binding = "SESSION_STORE_PROD"  # 本番環境用セッションストアバインディング
-id = "${KV_SESSION_STORE_ID}"
+id = "${KV_SESSION_STORE_ID}"  # GitHub ActionsではGitHub Secretsから設定
 
 # R2バケット設定（プロダクション）
 [[env.production.r2_buckets]]
 binding = "R2_STORAGE"  # 本番環境アセットストレージ
-bucket_name = "${R2_ASSETS_BUCKET_NAME}"
+bucket_name = "${R2_ASSETS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
 
 [[env.production.r2_buckets]]
 binding = "R2_BACKUP"  # 本番環境バックアップストレージ
-bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
+bucket_name = "${R2_BACKUPS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
 
 # ===========================================================
 # 開発環境（preview）設定
 # ===========================================================
 [env.preview]
-env_path = ".env.preview"
+env_path = ".env.development" # ローカル開発時は.env.developmentから環境変数を読み込み
 
 # 環境変数設定（プレビュー）
 [env.preview.vars]
@@ -61,27 +65,27 @@ NODE_ENV = "development"
 # D1データベース設定（プレビュー）
 [[env.preview.d1_databases]]
 binding = "DB"  # バインディング名
-database_name = "${D1_DATABASE_NAME}"  # 環境変数から読み込み
-database_id = "${D1_DATABASE_ID}"
+database_name = "automationa-tools-dev-db"  # 開発データベース名を直接指定
+database_id = "${D1_DATABASE_ID}"  # GitHub ActionsではGitHub Secretsから設定
 migrations_dir = "migrations"
 
 # KVネームスペース設定（プレビュー）
 [[env.preview.kv_namespaces]]
 binding = "CACHE_DEV"  # 開発環境用キャッシュバインディング
-id = "${KV_CACHE_ID}"
+id = "${KV_CACHE_ID}"  # GitHub ActionsではGitHub Secretsから設定
 
 [[env.preview.kv_namespaces]]
 binding = "SESSION_STORE_DEV"  # 開発環境用セッションストアバインディング
-id = "${KV_SESSION_STORE_ID}"
+id = "${KV_SESSION_STORE_ID}"  # GitHub ActionsではGitHub Secretsから設定
 
 # R2バケット設定（プレビュー）
 [[env.preview.r2_buckets]]
 binding = "R2_STORAGE"  # 開発環境アセットストレージ
-bucket_name = "${R2_ASSETS_BUCKET_NAME}"
+bucket_name = "${R2_ASSETS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
 
 [[env.preview.r2_buckets]]
 binding = "R2_BACKUP"  # 開発環境バックアップストレージ
-bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
+bucket_name = "${R2_BACKUPS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
 
 # .envファイルは、各環境に対応する env_path で自動的に読み込まれます：
 # - production: .env.production (pnpm exec wrangler pages deploy --env=production)
@@ -91,3 +95,8 @@ bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
 # - ローカル開発: `pnpm exec wrangler dev`（ローカル開発用）
 # - プレビューデプロイ: `pnpm exec wrangler pages deploy --env=preview`
 # - 本番デプロイ: `pnpm exec wrangler pages deploy --env=production`
+
+# 実行ガイド：
+# - ローカル開発: `pnpm exec wrangler dev --env=preview`
+# - プレビュー環境へのデプロイ: `pnpm exec wrangler pages deploy --env=preview`
+# - 本番環境へのデプロイ: `pnpm exec wrangler pages deploy --env=production`

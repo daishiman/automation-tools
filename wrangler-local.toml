@@ -3,6 +3,13 @@ compatibility_date = "2023-06-28"
 compatibility_flags = [ "nodejs_compat" ]
 pages_build_output_dir = "out"
 
+# =====================================================
+# ローカル開発用設定
+# =====================================================
+# このファイルはローカル開発専用です
+# 実行方法: pnpm exec wrangler dev --config wrangler-local.toml
+# =====================================================
+
 # ローカル開発用の共通変数
 [vars]
 APP_NAME = "Automationa Tools Local"
@@ -13,27 +20,37 @@ NODE_ENV = "development"
 # ローカル開発用のD1データベース設定
 [[d1_databases]]
 binding = "DB"
-database_name = "automationa-tools-local-db"
-database_id = "${D1_DATABASE_ID}" # 環境変数から読み込み
+database_name = "automationa-tools-local-db"  # ローカル開発用データベース名を直接指定
+# database_idは.envファイルから読み込まれます
+database_id = "${D1_DATABASE_ID}"  # .env.developmentから読み込み
 migrations_dir = "migrations"
 
 # ローカル開発用のKVネームスペース設定
 [[kv_namespaces]]
-binding = "CACHE_DEV"  # ローカル環境用キャッシュバインディング
-id = "${KV_CACHE_ID}"
+binding = "CACHE_LOCAL"  # ローカル環境用キャッシュバインディング
+id = "${KV_CACHE_ID}"  # .env.developmentから読み込み
 
 [[kv_namespaces]]
-binding = "SESSION_STORE_DEV"  # ローカル環境用セッションストアバインディング
-id = "${KV_SESSION_STORE_ID}"
+binding = "SESSION_STORE_LOCAL"  # ローカル環境用セッションストアバインディング
+id = "${KV_SESSION_STORE_ID}"  # .env.developmentから読み込み
 
 # ローカル開発用のR2バケット設定
 [[r2_buckets]]
-binding = "R2_ASSETS"  # ローカル環境アセットストレージ
-bucket_name = "${R2_ASSETS_BUCKET_NAME}"
+binding = "R2_STORAGE"  # ローカル環境アセットストレージ
+bucket_name = "automationa-tools-assets-local"  # ローカル環境のバケット名を直接指定
 
 [[r2_buckets]]
-binding = "R2_BACKUPS"  # ローカル環境バックアップストレージ
-bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
+binding = "R2_BACKUP"  # ローカル環境バックアップストレージ
+bucket_name = "automationa-tools-backups-local"  # ローカル環境のバケット名を直接指定
 
-# 注意：
-# - ローカル開発: `pnpm exec wrangler dev --config wrangler-local.toml`
+# ローカル環境変数の準備：
+# 1. .env.development.localファイルを作成し以下の変数を設定してください
+# D1_DATABASE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+# KV_CACHE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+# KV_SESSION_STORE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+# CLOUDFLARE_ACCOUNT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# CLOUDFLARE_API_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# ローカル開発用コマンド例：
+# - 開発サーバー起動: pnpm exec wrangler dev --config wrangler-local.toml
+# - マイグレーション適用: pnpm exec wrangler d1 migrations apply automationa-tools-local-db --config wrangler-local.toml
