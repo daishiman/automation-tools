@@ -26,7 +26,7 @@
 | ツール/アカウント    | 必要バージョン | 確認方法                                                | インストール方法                                    |
 | -------------------- | -------------- | ------------------------------------------------------- | --------------------------------------------------- |
 | Node.js              | v20.10.0以上   | `node -v`                                               | [公式サイト](https://nodejs.org/) または nvm        |
-| pnpm                 | v8.10.0以上    | `pnpm -v`                                               | `npm install -g pnpm`                               |
+| pnpm                 | v8.10.0以上    | `pnpm -v`                                               | `pnpm install -g pnpm`                              |
 | wrangler CLI         | v3.15.0以上    | `wrangler -v`                                           | `pnpm add -g wrangler`                              |
 | Cloudflareアカウント | -              | [dashboard.cloudflare.com](https://dash.cloudflare.com) | [サインアップ](https://dash.cloudflare.com/sign-up) |
 
@@ -37,7 +37,7 @@
 node -v  # v20.10.0以上が表示されること
 
 # pnpmのインストールと確認
-npm install -g pnpm@latest
+pnpm install -g pnpm@latest
 pnpm -v  # 8.10.0以上が表示されること
 
 # wranglerのインストール

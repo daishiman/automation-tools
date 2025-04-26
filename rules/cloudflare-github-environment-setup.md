@@ -504,7 +504,7 @@ WRANGLER_HOT_RELOAD=true
 
    ```bash
    # Node.js/npmの場合
-   npm install dotenv
+   pnpm install dotenv
 
    # 環境ごとに読み込むファイルを切り替え
    npx cross-env NODE_ENV=development node -r dotenv/config index.js
@@ -744,9 +744,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run lint
+          cache: 'pnpm'
+      - run: pnpm ci
+      - run: pnpm run lint
 
   test:
     name: テスト
@@ -756,9 +756,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm test
+          cache: 'pnpm'
+      - run: pnpm ci
+      - run: pnpm test
 
   build:
     name: ビルド検証
@@ -769,9 +769,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-      - run: npm ci
-      - run: npm run build
+          cache: 'pnpm'
+      - run: pnpm ci
+      - run: pnpm run build
       - uses: actions/upload-artifact@v4
         with:
           name: dist
@@ -845,8 +845,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-      - run: npm ci
+          cache: 'pnpm'
+      - run: pnpm ci
       - name: マイグレーション実行
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -864,8 +864,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-      - run: npm ci
+          cache: 'pnpm'
+      - run: pnpm ci
       - name: マイグレーション実行
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
@@ -1160,7 +1160,7 @@ Cloudflare Workers/Pagesでのエラーを追跡するには:
 
 ```bash
 # ローカルでデバッグモードで実行
-wrangler pages dev --env=preview -- npm run dev
+wrangler pages dev --env=preview -- pnpm run dev
 
 # リモートデバッグ（Workers）
 wrangler tail --env=preview

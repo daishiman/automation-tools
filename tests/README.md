@@ -61,24 +61,24 @@
 
 ```bash
 # 単体テスト
-npm run test:unit        # ウォッチモード
-npm run test:unit:run    # 一度だけ実行
+pnpm run test:unit        # ウォッチモード
+pnpm run test:unit:run    # 一度だけ実行
 
 # 統合テスト
-npm run test:integration        # ウォッチモード
-npm run test:integration:run    # 一度だけ実行
+pnpm run test:integration        # ウォッチモード
+pnpm run test:integration:run    # 一度だけ実行
 
 # E2Eテスト
-npm run test:e2e         # Playwright テスト
-npm run test:e2e:ui      # Playwright UI モード
+pnpm run test:e2e         # Playwright テスト
+pnpm run test:e2e:ui      # Playwright UI モード
 
 # パフォーマンステスト
-npm run test:performance        # ウォッチモード
-npm run test:performance:run    # 一度だけ実行
+pnpm run test:performance        # ウォッチモード
+pnpm run test:performance:run    # 一度だけ実行
 
 # すべてのテスト
-npm run test             # すべてのテストを実行
+pnpm run test             # すべてのテストを実行
 
 # カバレッジレポート
-npm run test:coverage    # カバレッジレポートを生成
+pnpm run test:coverage    # カバレッジレポートを生成
 ```
