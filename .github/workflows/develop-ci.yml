@@ -119,6 +119,9 @@ jobs:
     name: 開発環境デプロイ
     needs: [lint-and-test]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+      deployments: write
     uses: ./.github/workflows/reusable-deploy.yml
     with:
       environment: 'development'
@@ -138,6 +141,9 @@ jobs:
     name: プレビューデプロイ
     needs: [lint-and-test]
     if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      deployments: write
     uses: ./.github/workflows/reusable-deploy.yml
     with:
       environment: 'preview'

@@ -248,10 +248,14 @@ jobs:
     needs: [test]
     if: always() # テストが失敗しても常に実行
     uses: ./.github/workflows/reusable-test-reporting.yml
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     with:
       test_type: ${{ inputs.test_type }}
       junit_path: ${{ inputs.junit_path }}
       coverage_path: ${{ inputs.coverage_path }}
+      comment_on_pr: ${{ inputs.report_to_pr }}
       retention_days: 7
-      comment_on_pr: ${{ inputs.report_to_pr && github.event_name == 'pull_request' }}
       fail_on_empty: false
