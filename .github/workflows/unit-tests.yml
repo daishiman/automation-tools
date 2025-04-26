@@ -1,6 +1,10 @@
 name: 単体テスト実行
 
 # 単体テスト（ユニットテスト）を実行するワークフロー
+# このワークフローは以下の機能を提供します:
+# 1. 単体テスト（ユニットテスト）の実行およびカバレッジ計測
+# 2. コンポーネントテストの実行
+# 3. テスト結果のサマリー出力
 on:
   push:
     branches: [develop, main]
@@ -17,194 +21,73 @@ on:
   workflow_dispatch: # 手動実行も可能
 
 # 実行の最適化（同時実行を防止）
+# 同じブランチで複数のワークフローが実行された場合、古いものをキャンセル
 concurrency:
   group: unit-tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  vitest:
-    name: Vitestテスト実行
-    runs-on: ubuntu-latest
-    steps:
-      - name: ソースコードのチェックアウト
-        uses: actions/checkout@v4
+  # 単体テスト実行（再利用可能ワークフローを使用）
+  # ソースコードの基本的な機能単位をテスト
+  # 注意: reusable-test-execution.yml ワークフローでは以下の入力が使用されます
+  # - test_type: テストタイプ（unit/component/integration/e2eなど）
+  # - test_command: テスト実行コマンド
+  # - coverage_command: カバレッジ計測コマンド（空の場合はスキップ）
+  # - coverage_threshold: カバレッジの目標値（パーセント）
+  # - junit_path: JUnitレポートファイルのパス
+  # - coverage_path: カバレッジレポートのディレクトリパス
+  # - report_to_pr: PRにテスト結果をコメントするかどうか
+  unit-tests:
+    name: 単体テスト
+    uses: ./.github/workflows/reusable-test-execution.yml
+    with:
+      test_type: 'unit'
+      test_command: 'pnpm test:run --no-threads'
+      coverage_command: 'pnpm test:coverage --no-threads'
+      coverage_threshold: '70' # カバレッジ目標値（70%）
+      junit_path: 'junit.xml'
+      coverage_path: 'coverage'
+      report_to_pr: true
 
-      - name: PNPMのセットアップ
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8.10.0
-
-      - name: Node.jsのセットアップ
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-
-      - name: 依存関係のインストール
-        run: pnpm install
-
-      # テスト環境の確認
-      - name: テスト環境確認
-        run: |
-          echo "Node.jsバージョン: $(node -v)"
-          echo "NPMバージョン: $(npm -v)"
-          echo "PNPMバージョン: $(pnpm -v)"
-          echo "作業ディレクトリ: $(pwd)"
-          ls -la
-          echo "テスト設定ファイル内容:"
-          cat vitest.config.ts
-
-      # テストの実行（失敗しても続行）
-      - name: テスト実行
-        run: pnpm test:run --no-threads || echo "テスト実行に問題がありましたが続行します"
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
-          # パスエイリアス解決のために必要な環境変数
-          NODE_PATH: 'src'
-          # Vitestの詳細ログを有効化
-          VITEST_LOG_LEVEL: 'info'
-          DEBUG: 'vite:*'
-
-      # JUnitレポート形式のテスト結果を保存
-      - name: テスト結果の保存
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results
-          path: junit.xml
-          retention-days: 7
-
-  coverage:
-    name: テストカバレッジ計測
-    runs-on: ubuntu-latest
-    steps:
-      - name: ソースコードのチェックアウト
-        uses: actions/checkout@v4
-
-      - name: PNPMのセットアップ
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8.10.0
-
-      - name: Node.jsのセットアップ
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-
-      - name: 依存関係のインストール
-        run: pnpm install
-
-      # カバレッジを含めたテスト実行（失敗しても続行）
-      - name: カバレッジ計測
-        run: pnpm test:coverage --no-threads || echo "カバレッジ計測に問題がありましたが続行します"
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
-          # パスエイリアス解決のために必要な環境変数
-          NODE_PATH: 'src'
-          # Vitestの詳細ログを有効化
-          VITEST_LOG_LEVEL: 'info'
-          DEBUG: 'vite:*'
-
-      # カバレッジディレクトリが存在しない場合は作成
-      - name: カバレッジディレクトリ確認
-        run: |
-          if [ ! -d "coverage" ]; then
-            mkdir -p coverage
-            echo '{"total":{"lines":{"total":0,"covered":0,"skipped":0,"pct":0}}}' > coverage/coverage-summary.json
-            echo "カバレッジディレクトリとサマリーファイルを作成しました"
-          fi
-
-      # カバレッジレポートの保存
-      - name: カバレッジレポートの保存
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 7
-
-      # PRの場合、カバレッジレポートをコメント
-      - name: カバレッジレポートのコメント
-        if: github.event_name == 'pull_request'
-        continue-on-error: true
-        run: |
-          if [ ! -f "coverage/lcov-report/index.html" ]; then
-            mkdir -p coverage/lcov-report
-            echo "<html><body><h1>カバレッジレポートは利用できません</h1><p>テストを実行して再度お試しください。</p></body></html>" > coverage/lcov-report/index.html
-          fi
-
-      # カバレッジ閾値のチェック
-      - name: カバレッジ閾値チェック
-        run: |
-          if [ -f coverage/coverage-summary.json ]; then
-            COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
-            echo "総行カバレッジ: $COVERAGE%"
-
-            if (( $(echo "$COVERAGE < 70" | bc -l) )); then
-              echo "⚠️ テストカバレッジが目標値（70%）を下回っています"
-              echo "現在のカバレッジ: $COVERAGE%"
-              # 開発段階では警告のみ（エラーにはしない）
-              # 現在の環境では常にスキップする
-              echo "開発段階のため、カバレッジ不足は警告として扱います"
-            else
-              echo "✅ テストカバレッジが目標値を満たしています"
-            fi
-          else
-            echo "⚠️ カバレッジレポートが見つかりません"
-          fi
-
-  # コンポーネントテストは開発中のため条件付きで実行する
-  components:
+  # コンポーネントテスト実行（再利用可能ワークフローを使用）
+  # UIコンポーネントやモジュールの単体テスト
+  # 注意: コンポーネントテストは失敗しても続行するように設定されています
+  # これは開発段階のため、すべてのコンポーネントテストが完成していない可能性を考慮しています
+  component-tests:
     name: コンポーネントテスト
+    uses: ./.github/workflows/reusable-test-execution.yml
+    with:
+      test_type: 'component'
+      test_command: 'pnpm test:components --no-threads || echo "コンポーネントテスト実行に問題がありましたが、開発段階のため続行します"'
+      coverage_command: ''  # カバレッジは計測しない
+      junit_path: 'junit.xml'
+      report_to_pr: true
+
+  # テスト結果のサマリーを表示するジョブ
+  # 開発者にテスト状況をわかりやすく伝える
+  # needs で依存しているジョブからテスト結果と
+  # カバレッジの値を outputs として受け取って表示
+  test-summary:
+    name: テストサマリー
+    needs: [unit-tests, component-tests]
+    if: always() # テストが失敗しても必ず実行
     runs-on: ubuntu-latest
-    # 常に成功扱いにする（開発中のため）
-    continue-on-error: true
     steps:
-      - name: ソースコードのチェックアウト
-        uses: actions/checkout@v4
-
-      - name: PNPMのセットアップ
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8.10.0
-
-      - name: Node.jsのセットアップ
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'pnpm'
-
-      - name: 依存関係のインストール
-        run: pnpm install
-
-      # vitest.components.config.tsファイルの存在確認
-      - name: 設定ファイル確認
+      - name: テスト結果サマリー
         run: |
-          if [ ! -f "vitest.components.config.ts" ]; then
-            echo "警告: コンポーネントテスト設定ファイルが見つかりません。開発中のため処理を続行します。"
+          echo "単体テスト実行ステータス: ${{ needs.unit-tests.outputs.test_success }}"
+          echo "コンポーネントテスト実行ステータス: ${{ needs.component-tests.outputs.test_success }}"
+
+          if [[ "${{ needs.unit-tests.outputs.coverage_value }}" != "0" ]]; then
+            echo "単体テストカバレッジ: ${{ needs.unit-tests.outputs.coverage_value }}%"
+          else
+            echo "単体テストカバレッジ: 計測なし"
           fi
 
-      # コンポーネントテストの実行（失敗しても続行）
-      - name: コンポーネントテスト実行
-        run: pnpm test:components --no-threads || echo "コンポーネントテスト実行に問題がありましたが続行します"
-        env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
-          # パスエイリアス解決のために必要な環境変数
-          NODE_PATH: 'src'
-          # Vitestの詳細ログを有効化
-          VITEST_LOG_LEVEL: 'info'
-          DEBUG: 'vite:*'
-        continue-on-error: true
-
-      # テスト結果の保存
-      - name: テスト結果の保存
-        if: always()
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: component-test-results
-          path: junit.xml
-          retention-days: 7
+# 使用している環境変数:
+# - CF_ACCOUNT_ID/CLOUDFLARE_ACCOUNT_ID: Cloudflareアカウント識別子
+# - CF_API_TOKEN: Cloudflare API認証トークン
+# - D1_DATABASE_ID: D1データベースID (production/development)
+# - KV_CACHE_ID: KVキャッシュID (production/development)
+# - KV_NAMESPACE_ID: KV名前空間ID (production/development)
+# - KV_SESSION_STORE_ID: セッション管理用KV ID (production/development)
