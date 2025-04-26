@@ -85,10 +85,10 @@ jobs:
                 echo "❌ 最大リトライ回数に達しました。検証失敗。"
             exit 1
           fi
-            fi
+          fi
 
             # 成功
-            echo "✅ 基本検証: 成功"
+          echo "✅ 基本検証: 成功"
             break
           done
 
