@@ -84,11 +84,13 @@
     "gh:actions:fetch:with-logs": "DOWNLOAD_LOGS=true node scripts/github-actions-results.js all",
     "gh:actions:fetch:failed": "node scripts/github-actions-results.js 158216561",
     "gh:actions:fetch:failed:with-logs": "DOWNLOAD_LOGS=true node scripts/github-actions-results.js 158216561",
+    "gh:actions:fetch:test": "node scripts/github-actions-results.js --test-mode",
     "gh:actions:report": "node scripts/github-actions-report.js",
     "gh:actions:full": "pnpm gh:actions:fetch:all && pnpm gh:actions:report all-workflow-results.json",
     "gh:actions:full:env": "GITHUB_TOKEN=$GITHUB_TOKEN GITHUB_OWNER=$GITHUB_OWNER GITHUB_REPO=$GITHUB_REPO pnpm gh:actions:fetch:all && pnpm gh:actions:report all-workflow-results.json",
     "gh:actions:full:with-logs": "DOWNLOAD_LOGS=true pnpm gh:actions:fetch:all && pnpm gh:actions:report all-workflow-results.json",
-    "gh:actions:failed-report": "pnpm gh:actions:fetch:failed:with-logs && pnpm gh:actions:report workflow-158216561-results.json"
+    "gh:actions:failed-report": "pnpm gh:actions:fetch:failed:with-logs && pnpm gh:actions:report workflow-158216561-results.json",
+    "gh:actions:test:full": "pnpm gh:actions:fetch:test && pnpm gh:actions:report test-workflow-results.json"
   },
   "keywords": [],
   "author": "",

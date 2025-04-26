@@ -16,9 +16,27 @@ dotenv.config();
 const INPUT_DIR = process.env.INPUT_DIR || 'github-actions-results';
 const OUTPUT_DIR = process.env.OUTPUT_DIR || 'github-actions-reports';
 
+// リポジトリ情報の設定
+const OWNER = process.env.GITHUB_OWNER || 'daishiman';
+const REPO = process.env.GITHUB_REPO || 'automation-tools';
+
 // 引数の解析
 const args = process.argv.slice(2);
 const inputFile = args[0]; // 入力JSONファイル名
+
+// ワークフローの種類によって色を変えるマッピング
+const workflowColorMap = {
+  'コード品質チェック（リント）': '#673AB7', // 紫
+  'コードフォーマットチェック': '#2196F3', // 青
+  '単体テスト実行': '#4CAF50', // 緑
+  '統合テスト実行': '#FF9800', // オレンジ
+  '開発環境 CI/CD': '#03A9F4', // 水色
+  '本番環境 CI/CD': '#F44336', // 赤
+  '再利用可能セットアップ': '#9E9E9E', // グレー
+  'データベースマイグレーション': '#795548', // 茶色
+  'デプロイ後検証': '#009688', // ティール
+  '本番環境へのプロモート': '#E91E63', // ピンク
+};
 
 /**
  * 実行結果のステータスに応じた色を返す
@@ -41,9 +59,17 @@ function getStatusColor(status, conclusion) {
 }
 
 /**
+ * ワークフロー名に応じた色を返す
+ */
+function getWorkflowColor(workflowName) {
+  // マップに登録されている色があればそれを使用
+  return workflowColorMap[workflowName] || '#424242'; // デフォルト色はダークグレー
+}
+
+/**
  * ジョブの詳細情報をHTMLで生成
  */
-function generateJobsHTML(jobs, logs) {
+function generateJobsHTML(jobs) {
   if (!jobs || jobs.length === 0) {
     return '<p>ジョブ情報がありません</p>';
   }
@@ -52,7 +78,6 @@ function generateJobsHTML(jobs, logs) {
 
   jobs.forEach((job) => {
     const statusColor = getStatusColor(job.status, job.conclusion);
-    const jobLog = logs && logs[job.name] ? logs[job.name] : null;
 
     html += `
       <div class="job-card">
@@ -70,63 +95,19 @@ function generateJobsHTML(jobs, logs) {
             job.completed_at ? new Date(job.completed_at).toLocaleString() : '未完了'
           }</div>
         </div>
-        <div class="job-steps">
+        ${job.steps && job.steps.length > 0 ?
+        `<div class="job-steps">
           <h4>ステップ:</h4>
           <ul class="steps-list">
             ${generateStepsHTML(job.steps)}
           </ul>
-        </div>
-        ${
-          job.conclusion === 'failure'
-            ? `
-        <div class="log-section">
-          <details ${job.conclusion === 'failure' ? 'open' : ''}>
-            <summary>ログを表示</summary>
-            <div class="log-content">
-              <pre>${jobLog ? formatLog(jobLog) : 'ログが利用できません'}</pre>
-            </div>
-          </details>
-        </div>`
-            : ''
-        }
+        </div>` : '<div class="job-steps"><p>ステップ情報なし</p></div>'}
       </div>
     `;
   });
 
   html += '</div>';
   return html;
-}
-
-/**
- * ログの内容をフォーマット
- */
-function formatLog(log) {
-  if (!log) return 'ログがありません';
-
-  // HTMLエスケープ
-  let escapedLog = log
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-
-  // エラーメッセージを強調
-  escapedLog = escapedLog.replace(
-    /(error|Error|ERROR|失敗|エラー)/g,
-    '<span class="error-text">$1</span>'
-  );
-
-  // 行数を制限（最大3000行）
-  const lines = escapedLog.split('\n');
-  if (lines.length > 3000) {
-    escapedLog =
-      lines.slice(0, 1000).join('\n') +
-      '\n...[省略されました]...\n' +
-      lines.slice(lines.length - 2000).join('\n');
-  }
-
-  return escapedLog;
 }
 
 /**
@@ -386,19 +367,64 @@ function generateHTMLReport(data) {
           font-weight: bold;
         }
 
-        .log-toggle-all {
-          text-align: right;
-          margin-bottom: 10px;
+        .error-banner {
+          background-color: #ffebee;
+          color: #b71c1c;
+          padding: 10px;
+          margin-bottom: 15px;
+          border-radius: 4px;
+          border-left: 4px solid #f44336;
         }
 
-        .log-toggle-button {
+        .filters {
+          margin-bottom: 20px;
+          padding: 15px;
+          background-color: white;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        }
+
+        .filter-options {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-top: 10px;
+        }
+
+        .filter-button {
+          padding: 5px 10px;
+          border: 1px solid var(--border-color);
+          border-radius: 15px;
+          background-color: #f1f1f1;
+          cursor: pointer;
+          font-size: 0.9em;
+        }
+
+        .filter-button:hover {
+          background-color: #e3e3e3;
+        }
+
+        .filter-button.active {
           background-color: var(--primary-color);
           color: white;
-          border: none;
-          padding: 5px 10px;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 0.8em;
+        }
+
+        .timestamp {
+          font-size: 0.9em;
+          color: #666;
+        }
+
+        .workflow-link {
+          text-decoration: none;
+          color: var(--primary-color);
+          font-size: 0.85em;
+          margin-left: 10px;
+        }
+
+        .chart-container {
+          margin-bottom: 20px;
+          text-align: center;
         }
 
         footer {
@@ -420,10 +446,38 @@ function generateHTMLReport(data) {
         }
       </style>
       <script>
-        function toggleAllLogs(show) {
-          const details = document.querySelectorAll('.log-section details');
-          details.forEach(detail => {
-            detail.open = show;
+        // ページ読み込み完了時に実行
+        document.addEventListener('DOMContentLoaded', function() {
+          // 初期状態ですべてのワークフローを表示
+          filterWorkflows('all');
+        });
+
+        function filterWorkflows(status) {
+          console.log('Filtering by status:', status);
+
+          // すべてのフィルターボタンから'active'クラスを削除
+          document.querySelectorAll('.filter-button').forEach(btn => {
+            btn.classList.remove('active');
+          });
+
+          // クリックされたボタンに'active'クラスを追加
+          const activeButton = document.getElementById('filter-' + status);
+          if (activeButton) {
+            activeButton.classList.add('active');
+          }
+
+          // すべてのワークフローカードを取得
+          const workflowCards = document.querySelectorAll('.workflow-card');
+
+          workflowCards.forEach(card => {
+            const cardStatus = card.getAttribute('data-status');
+            console.log('Card status:', cardStatus, 'Filtering by:', status);
+
+            if (status === 'all' || cardStatus === status) {
+              card.style.display = 'block';
+            } else {
+              card.style.display = 'none';
+            }
           });
         }
       </script>
@@ -433,6 +487,7 @@ function generateHTMLReport(data) {
         <header>
           <h1>GitHub Actions実行結果レポート</h1>
           <p>生成日時: ${new Date().toLocaleString()}</p>
+          <p>リポジトリ: ${OWNER}/${REPO}</p>
         </header>
   `;
 
@@ -477,11 +532,77 @@ function generateHTMLReport(data) {
     </div>
   `;
 
-  // ログ表示制御ボタン
-  const logControls = `
-    <div class="log-toggle-all">
-      <button class="log-toggle-button" onclick="toggleAllLogs(true)">すべてのログを開く</button>
-      <button class="log-toggle-button" onclick="toggleAllLogs(false)">すべてのログを閉じる</button>
+  // シンプルな円グラフ - SVGで描画
+  let chartHTML = '';
+
+  if (data.length > 0) {
+    const total = successCount + failureCount + cancelledCount + inProgressCount;
+    const successPercent = successCount / total;
+    const failurePercent = failureCount / total;
+    const cancelledPercent = cancelledCount / total;
+    const inProgressPercent = inProgressCount / total;
+
+    // SVGの円周の長さは 2πr = 2 * π * 45 ≈ 283
+    const circumference = 2 * Math.PI * 45;
+
+    chartHTML = `
+      <div class="chart-container">
+        <h3>実行結果の分布</h3>
+        <svg width="250" height="250" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="45" fill="transparent" stroke="#eee" stroke-width="10" />
+
+          <!-- 成功部分 -->
+          ${successCount > 0 ? `
+          <circle cx="50" cy="50" r="45" fill="transparent" stroke="#4caf50" stroke-width="10"
+            stroke-dasharray="${successPercent * circumference} ${circumference}"
+            transform="rotate(-90 50 50)" />
+          ` : ''}
+
+          <!-- 失敗部分 -->
+          ${failureCount > 0 ? `
+          <circle cx="50" cy="50" r="45" fill="transparent" stroke="#f44336" stroke-width="10"
+            stroke-dasharray="${failurePercent * circumference} ${circumference}"
+            stroke-dashoffset="${-1 * (successPercent * circumference)}"
+            transform="rotate(-90 50 50)" />
+          ` : ''}
+
+          <!-- キャンセル部分 -->
+          ${cancelledCount > 0 ? `
+          <circle cx="50" cy="50" r="45" fill="transparent" stroke="#ff9800" stroke-width="10"
+            stroke-dasharray="${cancelledPercent * circumference} ${circumference}"
+            stroke-dashoffset="${-1 * ((successPercent + failurePercent) * circumference)}"
+            transform="rotate(-90 50 50)" />
+          ` : ''}
+
+          <!-- 進行中部分 -->
+          ${inProgressCount > 0 ? `
+          <circle cx="50" cy="50" r="45" fill="transparent" stroke="#2196f3" stroke-width="10"
+            stroke-dasharray="${inProgressPercent * circumference} ${circumference}"
+            stroke-dashoffset="${-1 * ((successPercent + failurePercent + cancelledPercent) * circumference)}"
+            transform="rotate(-90 50 50)" />
+          ` : ''}
+        </svg>
+        <div style="margin-top: 15px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
+          ${successCount > 0 ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #4caf50; margin-right: 5px;"></span> 成功 (${successCount})</div>` : ''}
+          ${failureCount > 0 ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #f44336; margin-right: 5px;"></span> 失敗 (${failureCount})</div>` : ''}
+          ${cancelledCount > 0 ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #ff9800; margin-right: 5px;"></span> キャンセル (${cancelledCount})</div>` : ''}
+          ${inProgressCount > 0 ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #2196f3; margin-right: 5px;"></span> 進行中 (${inProgressCount})</div>` : ''}
+        </div>
+      </div>
+    `;
+  }
+
+  // フィルターボタン
+  const filters = `
+    <div class="filters">
+      <h3>フィルター</h3>
+      <div class="filter-options">
+        <button id="filter-all" class="filter-button active" onclick="filterWorkflows('all')">すべて</button>
+        <button id="filter-success" class="filter-button" onclick="filterWorkflows('success')">成功</button>
+        <button id="filter-failure" class="filter-button" onclick="filterWorkflows('failure')">失敗</button>
+        <button id="filter-cancelled" class="filter-button" onclick="filterWorkflows('cancelled')">キャンセル</button>
+        <button id="filter-in_progress" class="filter-button" onclick="filterWorkflows('in_progress')">進行中</button>
+      </div>
     </div>
   `;
 
@@ -490,11 +611,22 @@ function generateHTMLReport(data) {
 
   data.forEach((run) => {
     const statusColor = getStatusColor(run.status, run.conclusion);
+    const workflowColor = getWorkflowColor(run.workflow_name);
     const hasFailedJobs = run.jobs.some((job) => job.conclusion === 'failure');
 
+    // フィルタリング用のステータス属性を厳密に設定
+    let dataStatus = 'unknown';
+    if (run.status === 'completed') {
+      dataStatus = run.conclusion || 'unknown';
+    } else if (run.status === 'in_progress') {
+      dataStatus = 'in_progress';
+    } else {
+      dataStatus = run.status || 'unknown';
+    }
+
     workflowsContent += `
-      <div class="workflow-card">
-        <div class="workflow-header">
+      <div class="workflow-card" data-status="${dataStatus}">
+        <div class="workflow-header" style="border-left: 4px solid ${workflowColor}">
           <h2>${run.workflow_name} #${run.run_number}</h2>
           <div class="status-badge" style="background-color: ${statusColor}">
             ${run.conclusion || run.status}
@@ -504,15 +636,18 @@ function generateHTMLReport(data) {
           <div class="workflow-details">
             <div class="workflow-detail-item">
               <strong>実行ID:</strong> ${run.run_id}
+              <a href="https://github.com/${OWNER}/${REPO}/actions/runs/${run.run_id}" target="_blank" class="workflow-link">GitHubで表示</a>
             </div>
             <div class="workflow-detail-item">
               <strong>イベント:</strong> ${run.event}
             </div>
             <div class="workflow-detail-item">
-              <strong>作成日時:</strong> ${new Date(run.created_at).toLocaleString()}
+              <strong>作成日時:</strong>
+              <span class="timestamp">${new Date(run.created_at).toLocaleString()}</span>
             </div>
             <div class="workflow-detail-item">
-              <strong>更新日時:</strong> ${new Date(run.updated_at).toLocaleString()}
+              <strong>更新日時:</strong>
+              <span class="timestamp">${new Date(run.updated_at).toLocaleString()}</span>
             </div>
           </div>
           <h3>ジョブ</h3>
@@ -521,11 +656,25 @@ function generateHTMLReport(data) {
               ? '<div class="error-banner">このワークフローには失敗したジョブがあります</div>'
               : ''
           }
-          ${generateJobsHTML(run.jobs, run.logs)}
+          ${generateJobsHTML(run.jobs)}
         </div>
       </div>
     `;
   });
+
+  // データがない場合の表示
+  if (data.length === 0) {
+    workflowsContent = `
+      <div class="workflow-card">
+        <div class="workflow-header">
+          <h2>実行結果がありません</h2>
+        </div>
+        <div class="workflow-content">
+          <p>GitHub Actionsの実行結果が見つかりませんでした。最近のワークフロー実行がない可能性があります。</p>
+        </div>
+      </div>
+    `;
+  }
 
   // フッター部分
   const footer = `
@@ -537,7 +686,7 @@ function generateHTMLReport(data) {
     </html>
   `;
 
-  return header + summary + logControls + workflowsContent + footer;
+  return header + summary + chartHTML + filters + workflowsContent + footer;
 }
 
 /**
