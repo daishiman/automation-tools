@@ -37,8 +37,8 @@
     "cf:local": "node -r dotenv/config scripts/wrangler-helper.js --mode=dev --env=local",
     "cf:preview": "node -r dotenv/config scripts/wrangler-helper.js --mode=dev --env=preview",
     "cf:prod": "node -r dotenv/config scripts/wrangler-helper.js --mode=dev --env=production",
-    "cf:deploy:preview": "next build && pnpm exec wrangler pages deploy ./out --project-name=automationa-tools --env=preview",
-    "cf:deploy:prod": "next build && pnpm exec wrangler pages deploy ./out --project-name=automationa-tools --env=production",
+    "cf:deploy:preview": "next build && pnpm exec wrangler pages deploy ./out --project-name=automationa-tools --branch=develop",
+    "cf:deploy:prod": "next build && pnpm exec wrangler pages deploy ./out --project-name=automationa-tools --branch=main",
     "cf:tail:preview": "node -r dotenv/config scripts/wrangler-helper.js --mode=tail --env=preview",
     "cf:tail:prod": "node -r dotenv/config scripts/wrangler-helper.js --mode=tail --env=production",
     "cf:db:local": "node -r dotenv/config scripts/wrangler-helper.js --mode=db --env=local",
@@ -128,8 +128,7 @@
     "msw": "^2.7.4",
     "prettier": "3.1.0",
     "typescript": "5.3.2",
-    "vitest": "0.34.6",
-    "wrangler": "4.12.0"
+    "vitest": "0.34.6"
   },
   "dependencies": {
     "@cloudflare/d1": "1.4.1",
@@ -162,6 +161,7 @@
     "tailwindcss-animate": "1.0.7",
     "tsx": "^4.7.0",
     "uuid": "9.0.1",
+    "wrangler": "^4.13.2",
     "zod": "3.22.4",
     "zustand": "4.4.6"
   },
@@ -171,6 +171,9 @@
       "msw",
       "workerd",
       "@rollup/rollup-darwin-arm64"
-    ]
+    ],
+    "overrides": {
+      "@cloudflare/workerd-darwin-x64": "npm:@cloudflare/workerd-darwin-arm64"
+    }
   }
 }
