@@ -52,7 +52,8 @@ jobs:
         else
           echo "⚠️ test:api スクリプトが見つかりません"
           echo "代替として integration ディレクトリ内の API テストを実行します"
-          pnpm vitest run "tests/integration/api" || echo "API統合テストに問題がありましたが、開発段階のため続行します"
+          pnpm vitest run "tests/integration/api"
+          echo "API統合テストに問題がありましたが、開発段階のため続行します"
         fi
       junit_path: 'junit.xml'
       report_to_pr: true
@@ -85,7 +86,9 @@ jobs:
         else
           echo "⚠️ test:integration スクリプトが見つかりません"
           echo "代替として integration ディレクトリ内のテストを実行します"
-          pnpm vitest run "tests/integration" --exclude "tests/integration/api/**" --exclude "tests/integration/database/**" || echo "ページ統合テストに問題がありましたが、開発段階のため続行します"
+          # --excludeオプションの使用方法を修正
+          find tests/integration -type f -name "*.test.ts" | grep -v "api" | grep -v "database" | xargs -r pnpm vitest run
+          echo "ページ統合テストに問題がありましたが、開発段階のため続行します"
         fi
       junit_path: 'junit.xml'
       report_to_pr: true
@@ -128,7 +131,12 @@ jobs:
         else
           echo "⚠️ DB統合テスト用スクリプトが見つかりません"
           echo "代替として integration/database ディレクトリ内のテストを実行します"
-          pnpm vitest run "tests/integration/database" || echo "DB統合テストに問題がありましたが、開発段階のため続行します"
+          if [ -d "tests/integration/database" ]; then
+            pnpm vitest run "tests/integration/database"
+          else
+            echo "tests/integration/database ディレクトリが見つかりません"
+          fi
+          echo "DB統合テストに問題がありましたが、開発段階のため続行します"
         fi
       junit_path: 'junit.xml'
       report_to_pr: true

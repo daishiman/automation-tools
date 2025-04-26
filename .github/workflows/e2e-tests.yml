@@ -76,7 +76,6 @@ jobs:
             ${{ runner.os }}-playwright-
 
       # Playwrightのセットアップステップ
-      # オプション1: actions/playwright-testアクションを使用（推奨）
       - name: Playwrightブラウザのインストール
         run: |
           # E2Eテストコマンドの存在確認
@@ -86,7 +85,8 @@ jobs:
             # Playwrightのインストール（タイムアウト対策として再試行を追加）
             for i in {1..3}; do
               echo "Playwrightインストール試行 $i/3..."
-              if pnpm exec playwright install --with-deps chromium; then
+              pnpm exec playwright install --with-deps chromium
+              if [ $? -eq 0 ]; then
                 echo "✅ Playwrightのインストールに成功しました"
                 break
               fi
@@ -133,7 +133,11 @@ jobs:
         id: run_test
         if: steps.check_e2e_command.outputs.command_exists == 'true'
         continue-on-error: true
-        run: pnpm test:e2e || echo "E2Eテストに問題がありましたが、レポート生成のため続行します"
+        run: |
+          pnpm test:e2e
+          if [ $? -ne 0 ]; then
+            echo "E2Eテストに問題がありましたが、レポート生成のため続行します"
+          fi
         env:
           PLAYWRIGHT_TEST_BASE_URL: ${{ env.TEST_URL }}
           # ブラウザのタイムアウト時間を延長

@@ -129,7 +129,7 @@ jobs:
         if: steps.check_test_command.outputs.command_exists != 'false'
         run: |
           echo "テストコマンドを実行: ${{ inputs.test_command }}"
-          ${{ inputs.test_command }} || echo "テスト実行で問題がありましたが続行します"
+          ${{ inputs.test_command }}
         env:
           # Node.jsヒープメモリサイズを増加（大規模テスト用）
           NODE_OPTIONS: '--max-old-space-size=4096'
@@ -145,7 +145,7 @@ jobs:
         continue-on-error: true
         run: |
           echo "カバレッジ計測コマンドを実行: ${{ inputs.coverage_command }}"
-          ${{ inputs.coverage_command }} || echo "カバレッジ計測で問題がありましたが続行します"
+          ${{ inputs.coverage_command }}
         env:
           # Node.jsのメモリ設定（カバレッジ生成は多くのメモリを使用）
           NODE_OPTIONS: '--max-old-space-size=4096'
