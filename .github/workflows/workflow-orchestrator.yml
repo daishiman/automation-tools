@@ -95,6 +95,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const checkE2eResult = '${{ steps.check-e2e.outputs.result }}';
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -105,7 +107,7 @@ jobs:
 
               - ✅ ユニットテスト（自動実行）
               - ✅ 統合テスト（自動実行）
-              ${steps.check-e2e.outputs.result == 'true' ? '- ✅ E2Eテスト（自動実行）' : '- ⏸️ E2Eテスト（"needs-e2e-tests"ラベルを追加すると実行されます）'}
+              ${checkE2eResult == 'true' ? '- ✅ E2Eテスト（自動実行）' : '- ⏸️ E2Eテスト（"needs-e2e-tests"ラベルを追加すると実行されます）'}
 
               各テスト結果は個別のワークフローコメントで報告されます。`
             });
