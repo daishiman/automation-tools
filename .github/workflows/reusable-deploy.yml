@@ -257,9 +257,14 @@ jobs:
         run: |
           echo "データベースマイグレーションを実行しています（${{ inputs.environment }}環境）..."
 
+          # 環境変数とワークスペースの確認
+          echo "環境変数の確認:"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "環境名: ${{ inputs.environment }}"
+          echo "D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}"
+
           # wrangler.tomlの環境変数展開用に一時的な.envファイルを作成
           cat > .env.migration << EOF
-          D1_DATABASE_NAME=${{ vars.D1_DATABASE_NAME }}
           D1_DATABASE_ID=${{ secrets.D1_DATABASE_ID }}
           KV_CACHE_ID=${{ secrets.KV_CACHE_ID }}
           KV_SESSION_STORE_ID=${{ secrets.KV_SESSION_STORE_ID }}
@@ -267,15 +272,28 @@ jobs:
           R2_BACKUPS_BUCKET_NAME=${{ vars.R2_BACKUPS_BUCKET_NAME }}
           EOF
 
+          # 環境変数ファイルの内容確認
+          echo "環境変数ファイルの内容:"
+          cat .env.migration
+
           if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            # ハードコードされたデータベース名を使用
+            DB_NAME="automationa-tools-dev-db"
+            echo "データベース名: ${DB_NAME}"
+
             # 環境変数ファイルを使用してマイグレーション実行
-            WRANGLER_CONFIG_ENV_PATH=.env.migration pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} --env=preview
+            WRANGLER_CONFIG_ENV_PATH=.env.migration CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} pnpm exec wrangler d1 migrations apply "${DB_NAME}" --env=preview
           elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            # ハードコードされたデータベース名を使用
+            DB_NAME="automationa-tools-db"
+            echo "データベース名: ${DB_NAME}"
+
             # 環境変数ファイルを使用してマイグレーション実行
-            WRANGLER_CONFIG_ENV_PATH=.env.migration pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} --env=production
+            WRANGLER_CONFIG_ENV_PATH=.env.migration CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} pnpm exec wrangler d1 migrations apply "${DB_NAME}" --env=production
           fi
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
