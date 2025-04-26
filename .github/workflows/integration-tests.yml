@@ -27,6 +27,12 @@ concurrency:
   group: integration-tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 各統合テストジョブの間隔を空けるための待機時間設定
+env:
+  API_TEST_DELAY: 3
+  PAGE_TEST_DELAY: 6
+  DB_TEST_DELAY: 9
+
 # ジョブに必要な権限を追加
 # PRへのコメント投稿のために必要
 permissions:
@@ -46,6 +52,10 @@ jobs:
     with:
       test_type: 'api-integration'
       test_command: |
+        # API統合テスト前に待機（ジョブの同時実行防止）
+        echo "API統合テスト実行前に $API_TEST_DELAY 秒待機します..."
+        sleep $API_TEST_DELAY
+
         if grep -q '"test:api"' package.json; then
           echo "✅ test:api スクリプトが見つかりました"
           pnpm test:api || echo "API統合テストに問題がありましたが、開発段階のため続行します"
@@ -71,6 +81,10 @@ jobs:
     with:
       test_type: 'page-integration'
       test_command: |
+        # ページ統合テスト前に待機（ジョブの同時実行防止）
+        echo "ページ統合テスト実行前に $PAGE_TEST_DELAY 秒待機します..."
+        sleep $PAGE_TEST_DELAY
+
         if grep -q '"mock-server"' package.json; then
           echo "✅ モックサーバーを起動中..."
           pnpm mock-server &
@@ -106,6 +120,10 @@ jobs:
     with:
       test_type: 'db-integration'
       test_command: |
+        # DB統合テスト前に待機（ジョブの同時実行防止）
+        echo "データベース統合テスト実行前に $DB_TEST_DELAY 秒待機します..."
+        sleep $DB_TEST_DELAY
+
         # テスト用のSQLiteデータベースをセットアップ（セットアップスクリプトの存在確認）
         if grep -q '"db:test:setup"' package.json; then
           echo "✅ db:test:setup スクリプトを実行します"
