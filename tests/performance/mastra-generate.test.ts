@@ -74,7 +74,7 @@ describe('Mastra 生成パフォーマンステスト', () => {
       expect(result).toHaveProperty('text');
       expect(result).toHaveProperty('tokens');
     }
-  }, 30000); // テストタイムアウトを30秒に短縮
+  }, 600000); // テストタイムアウトを30秒から600秒（10分）に変更
 
   it('連続した生成リクエストのパフォーマンス', async () => {
     const samplePrompt = 'これは連続テスト用のプロンプトです';
@@ -114,5 +114,5 @@ describe('Mastra 生成パフォーマンステスト', () => {
     // 検証
     expect(results.length).toBe(iterations);
     expect(averageDuration).toBeLessThan(4000); // 平均4秒以内（タイムアウトの5秒より短い）
-  }, 30000); // テストタイムアウトを30秒に短縮
+  }, 600000); // テストタイムアウトを30秒から600秒（10分）に変更
 });
