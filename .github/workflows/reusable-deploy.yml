@@ -362,11 +362,11 @@ jobs:
 
             # キャッシュKVの初期化
             echo "開発環境キャッシュKVの初期化中..."
-            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
 
             # セッションストアKVの初期化
             echo "開発環境セッションストアKVの初期化中..."
-            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
 
             # デプロイ日時を記録
             pnpm kv:dev:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -377,11 +377,11 @@ jobs:
 
             # キャッシュKVの初期化
             echo "本番環境キャッシュKVの初期化中..."
-            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
 
             # セッションストアKVの初期化
             echo "本番環境セッションストアKVの初期化中..."
-            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
 
             # デプロイ日時を記録
             pnpm kv:prod:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"

@@ -173,11 +173,11 @@ jobs:
 
             # キャッシュKVの初期化
             echo "本番環境キャッシュKVの初期化中..."
-            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
 
             # セッションストアKVの初期化
             echo "本番環境セッションストアKVの初期化中..."
-            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
 
             # マイグレーション情報を記録
             pnpm kv:prod:put DB_LAST_MIGRATED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -187,11 +187,11 @@ jobs:
 
             # キャッシュKVの初期化
             echo "開発環境キャッシュKVの初期化中..."
-            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
 
             # セッションストアKVの初期化
             echo "開発環境セッションストアKVの初期化中..."
-            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+            pnpm exec wrangler kv namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
 
             # マイグレーション情報を記録
             pnpm kv:dev:put DB_LAST_MIGRATED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -226,7 +226,7 @@ jobs:
             echo "最新のデータベースバックアップ確認："
             pnpm exec wrangler r2 object list ${{ vars.R2_BACKUPS_BUCKET_NAME }} --prefix="db-backup-" --max-keys=5 > /tmp/r2-backups.txt || echo "バックアップ一覧取得失敗"
             cat /tmp/r2-backups.txt | sort -r | head -n 5 || echo "バックアップファイル一覧スキップ"
-          
+
           else
             # 開発環境R2バケット確認
             echo "開発環境アセットバケット確認中..."
