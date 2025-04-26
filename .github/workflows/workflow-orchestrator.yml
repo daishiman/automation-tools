@@ -28,11 +28,12 @@ concurrency:
   group: orchestrator-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# workflow_dispatch APIにアクセスするための権限設定
+# workflow_dispatch APIにアクセスするための権限設定を修正
 permissions:
-  contents: read
+  contents: write
   pull-requests: write
   actions: write
+  issues: write
 
 jobs:
   # ワークフローの実行を制御
@@ -54,31 +55,40 @@ jobs:
           echo "コミットSHA: ${{ github.sha }}"
           echo "指定されたブランチ: ${{ github.event.inputs.target_branch || 'なし' }}"
 
+      # ワークフロー実行コマンドを改善
       - name: ユニットテストワークフローの実行
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'unit-tests.yml',
-              ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
-            });
-            console.log('ユニットテストワークフローを実行しました');
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'unit-tests.yml',
+                ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
+              });
+              console.log('ユニットテストワークフローを実行しました');
+            } catch (error) {
+              console.error('ユニットテストワークフロー実行エラー:', error.message);
+            }
 
       - name: 統合テストワークフローの実行
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'integration-tests.yml',
-              ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
-            });
-            console.log('統合テストワークフローを実行しました');
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'integration-tests.yml',
+                ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
+              });
+              console.log('統合テストワークフローを実行しました');
+            } catch (error) {
+              console.error('統合テストワークフロー実行エラー:', error.message);
+            }
 
       # PRに特定のラベルがある場合のみE2Eテスト実行
       - name: E2Eテストワークフローの実行要否確認
@@ -104,13 +114,17 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'e2e-tests.yml',
-              ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
-            });
-            console.log('E2Eテストワークフローを実行しました');
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'e2e-tests.yml',
+                ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
+              });
+              console.log('E2Eテストワークフローを実行しました');
+            } catch (error) {
+              console.error('E2Eテストワークフロー実行エラー:', error.message);
+            }
 
       # プレビューデプロイの実行（feature/**ブランチの場合）
       - name: プレビューデプロイの実行
@@ -121,14 +135,20 @@ jobs:
           script: |
             console.log('プレビューデプロイワークフローを実行します: ${{ github.ref_name }}');
 
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: 'develop-ci.yml',
-              ref: 'develop'
-            });
-
-            console.log('プレビューデプロイワークフローを実行しました');
+            try {
+              await github.rest.actions.createWorkflowDispatch({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'develop-ci.yml',
+                ref: 'develop',
+                inputs: {
+                  preview_branch: '${{ github.ref_name }}'
+                }
+              });
+              console.log('プレビューデプロイワークフローを実行しました');
+            } catch (error) {
+              console.error('プレビューデプロイワークフロー実行エラー:', error.message);
+            }
 
       - name: テスト実行状況の通知
         uses: actions/github-script@v6

@@ -38,7 +38,6 @@ jobs:
 
     steps:
       # 基本的な環境セットアップステップ
-      # リポジトリのコードを取得し、Node.jsとPNPM環境を準備
       - name: リポジトリのチェックアウト
         uses: actions/checkout@v4
 
@@ -54,31 +53,55 @@ jobs:
           cache: 'pnpm'
 
       - name: 依存関係のインストール
+        id: install
+        continue-on-error: true
         run: pnpm install
 
-      # Playwrightのセットアップステップ
-      # ブラウザテスト自動化ツールPlaywrightとブラウザ依存関係をインストール
-      # タイムアウト対策として最大3回の再試行ロジックを実装
-      - name: Playwrightのインストール
+      # 依存関係のインストールに失敗した場合は再試行
+      - name: 依存関係のインストール（再試行）
+        if: steps.install.outcome != 'success'
         run: |
-          # Playwrightのインストール（タイムアウト対策として再試行を追加）
-          for i in {1..3}; do
-            echo "Playwrightインストール試行 $i/3..."
-            if pnpm exec playwright install --with-deps chromium; then
-              echo "✅ Playwrightのインストールに成功しました"
-              break
-            fi
-            if [ $i -eq 3 ]; then
-              echo "⚠️ Playwrightのインストールに失敗しましたが、続行します"
-            else
-              echo "再試行します..."
-              sleep 5
-            fi
-          done
+          echo "依存関係のインストールを再試行します..."
+          rm -rf node_modules
+          pnpm store prune
+          pnpm install --no-frozen-lockfile
+
+      # Playwrightの依存関係をキャッシュ
+      - name: Playwrightキャッシュの設定
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # Playwrightのセットアップステップ
+      - name: Playwrightブラウザのインストール
+        run: |
+          # E2Eテストコマンドの存在確認
+          if grep -q '"test:e2e"' package.json; then
+            echo "✅ E2Eテストコマンドが見つかりました"
+
+            # Playwrightのインストール（タイムアウト対策として再試行を追加）
+            for i in {1..3}; do
+              echo "Playwrightインストール試行 $i/3..."
+              pnpm exec playwright install --with-deps chromium
+              if [ $? -eq 0 ]; then
+                echo "✅ Playwrightのインストールに成功しました"
+                break
+              fi
+              if [ $i -eq 3 ]; then
+                echo "⚠️ Playwrightのインストールに失敗しましたが、続行します"
+              else
+                echo "再試行します..."
+                sleep 5
+              fi
+            done
+          else
+            echo "⚠️ test:e2e スクリプトが見つかりません。Playwrightテストが設定されていない可能性があります。"
+          fi
 
       # テスト環境の決定ステップ
-      # 手動実行時の選択またはブランチに基づいて適切なテスト環境URLを設定
-      # 本番環境（main）または開発環境のURLをGitHub環境変数として設定
       - name: テスト環境URLの設定
         id: set-url
         run: |
@@ -90,19 +113,37 @@ jobs:
             echo "ENVIRONMENT=development" >> $GITHUB_ENV
           fi
 
+          echo "テスト対象URL: $TEST_URL"
+          echo "テスト環境: $ENVIRONMENT"
+
+      # E2Eテスト実行ステップ - コマンドの存在確認
+      - name: E2Eテストコマンド確認
+        id: check_e2e_command
+        run: |
+          if grep -q '"test:e2e"' package.json; then
+            echo "✅ E2Eテストコマンドが見つかりました"
+            echo "command_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ E2Eテストコマンドが見つかりません"
+            echo "command_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       # E2Eテスト実行ステップ
-      # 設定したURL環境変数を使用してPlaywrightテストを実行
-      # テスト失敗時もレポート生成のためにワークフローを続行
       - name: E2Eテスト実行
-        run: pnpm test:e2e || echo "E2Eテストに問題がありましたが、レポート生成のため続行します"
+        id: run_test
+        if: steps.check_e2e_command.outputs.command_exists == 'true'
+        continue-on-error: true
+        run: |
+          pnpm test:e2e
+          if [ $? -ne 0 ]; then
+            echo "E2Eテストに問題がありましたが、レポート生成のため続行します"
+          fi
         env:
           PLAYWRIGHT_TEST_BASE_URL: ${{ env.TEST_URL }}
           # ブラウザのタイムアウト時間を延長
           PLAYWRIGHT_TIMEOUT: 60000
 
       # テスト失敗時のスクリーンショット保存
-      # テスト失敗時の状態を視覚的に確認するためのスクリーンショットを保存
-      # 常に実行され、ファイルがない場合はスキップ
       - name: スクリーンショットの保存
         if: always()
         uses: actions/upload-artifact@v4
@@ -113,8 +154,6 @@ jobs:
           if-no-files-found: ignore
 
       # テスト結果アーティファクト保存ステップ
-      # Playwrightテスト結果をGitHub Actionsのアーティファクトとして保存
-      # 後で詳細なレポートや分析のために使用可能
       - name: テスト結果の保存
         if: always()
         uses: actions/upload-artifact@v4
@@ -122,10 +161,9 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
+          if-no-files-found: ignore
 
       # HTMLレポート保存ステップ
-      # ブラウザで閲覧可能な形式のテスト結果レポートを保存
-      # UIテスト失敗の詳細な分析のために重要
       - name: HTMLレポートの保存
         if: always()
         uses: actions/upload-artifact@v4
@@ -136,8 +174,6 @@ jobs:
           if-no-files-found: ignore
 
       # テスト結果サマリー作成ステップ
-      # テスト結果の概要をマークダウン形式で生成
-      # レポートファイルがない場合はデフォルトメッセージを設定
       - name: テスト結果サマリーの作成
         if: always()
         run: |
@@ -145,12 +181,15 @@ jobs:
           if [ ! -f "playwright-report/summary.md" ]; then
             echo "# E2Eテスト結果" > playwright-report/summary.md
             echo "" >> playwright-report/summary.md
-            echo "E2Eテスト実行中に問題が発生しました。詳細はワークフローのログを確認してください。" >> playwright-report/summary.md
+            if [ "${{ steps.check_e2e_command.outputs.command_exists }}" == "true" ]; then
+              echo "E2Eテスト実行中に問題が発生しました。詳細はワークフローのログを確認してください。" >> playwright-report/summary.md
+            else
+              echo "E2Eテストコマンドが見つからなかったため、テストを実行できませんでした。" >> playwright-report/summary.md
+              echo "package.jsonに「test:e2e」スクリプトを追加してください。" >> playwright-report/summary.md
+            fi
           fi
 
       # PRコメント追加ステップ（PR時のみ）
-      # テスト結果サマリーを整形してPRにコメント
-      # エラー発生時も最低限の情報を提供するための例外処理を含む
       - name: テスト結果サマリー
         if: github.event_name == 'pull_request' && always()
         uses: actions/github-script@v6
@@ -166,6 +205,8 @@ jobs:
 
               const status = "${{ job.status }}";
               const statusEmoji = status === 'success' ? '✅' : (status === 'failure' ? '❌' : '⚠️');
+              const commandExists = "${{ steps.check_e2e_command.outputs.command_exists }}";
+              const commandExistsMsg = commandExists === 'true' ? '' : '\n\n⚠️ E2Eテストコマンドが見つかりませんでした。package.jsonに「test:e2e」スクリプトを追加してください。';
 
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
@@ -173,7 +214,7 @@ jobs:
                 repo: context.repo.repo,
                 body: `## E2Eテスト結果 (${{ env.ENVIRONMENT }}) ${statusEmoji}
 
-                ${summary}
+                ${summary}${commandExistsMsg}
 
                 [詳細レポートはこちら](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
               });
