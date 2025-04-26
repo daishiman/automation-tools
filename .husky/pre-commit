@@ -137,10 +137,16 @@ else
   echo "📝 rules変更なし。ドキュメントチェックをスキップします。"
 fi
 
-# 変更があった場合、変更を自動的にステージングする
+# フォーマッターで修正されたファイルのみをステージングする
 if [ -n "$(git diff --name-only)" ]; then
-  echo "📝 フォーマッターによる変更を自動的にステージングします..."
-  git add -u
+  echo "📝 フォーマッターによる変更のみをステージングします..."
+  # ステージング済みのファイルのうち、フォーマッター実行後に変更されたもののみを再ステージング
+  for file in $staged_files; do
+    if [ -n "$(git diff --name-only $file)" ]; then
+      echo "  - $file の変更をステージングします"
+      git add $file
+    fi
+  done
 fi
 
 # 実行終了時間と結果表示
