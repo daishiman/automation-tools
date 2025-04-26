@@ -246,8 +246,125 @@ jobs:
 
           exit 1
 
+      # デプロイURLの出力
       - name: デプロイURLの出力
+        if: success()
         run: echo "✅ ${{ inputs.environment }}環境がデプロイされました： ${{ steps.deploy.outputs.url }}"
+
+      # データベースマイグレーションの実行
+      - name: データベースマイグレーション実行
+        if: success()
+        run: |
+          echo "データベースマイグレーションを実行しています（${{ inputs.environment }}環境）..."
+
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            pnpm cf:db:preview:migrations:apply
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            pnpm cf:db:prod:migrations:apply
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+
+      # KVストアの初期化（必要に応じて）
+      - name: KVストア初期化
+        if: success()
+        run: |
+          echo "KVストアを初期化しています（${{ inputs.environment }}環境）..."
+
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            # 開発環境KV初期化 - アプリバージョン
+            pnpm kv:dev:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+
+            # キャッシュKVの初期化
+            echo "開発環境キャッシュKVの初期化中..."
+            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+            # セッションストアKVの初期化
+            echo "開発環境セッションストアKVの初期化中..."
+            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+            # デプロイ日時を記録
+            pnpm kv:dev:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            # 本番環境KV初期化 - アプリバージョン
+            pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+
+            # キャッシュKVの初期化
+            echo "本番環境キャッシュKVの初期化中..."
+            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+            # セッションストアKVの初期化
+            echo "本番環境セッションストアKVの初期化中..."
+            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+            # デプロイ日時を記録
+            pnpm kv:prod:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          KV_CACHE_ID: ${{ secrets.KV_CACHE_ID }}
+          KV_SESSION_STORE_ID: ${{ secrets.KV_SESSION_STORE_ID }}
+
+      # R2バケットの初期化（必要に応じて）
+      - name: R2バケット初期化
+        if: success()
+        run: |
+          echo "R2バケットを確認しています（${{ inputs.environment }}環境）..."
+
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            # 開発環境R2バケット確認
+            echo "開発環境アセットバケット確認中..."
+            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+
+            # バックアップバケット確認
+            echo "開発環境バックアップバケット確認中..."
+            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+
+            # バケットが存在しない場合は作成
+            if ! pnpm exec wrangler r2 bucket list | grep -q "${{ vars.R2_ASSETS_BUCKET_NAME }}"; then
+              echo "アセットバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            if ! pnpm exec wrangler r2 bucket list | grep -q "${{ vars.R2_BACKUPS_BUCKET_NAME }}"; then
+              echo "バックアップバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            # バケット使用状況確認
+            echo "開発環境R2バケット使用状況："
+            pnpm exec wrangler r2 bucket list
+
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            # 本番環境R2バケット確認
+            echo "本番環境アセットバケット確認中..."
+            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+
+            # バックアップバケット確認
+            echo "本番環境バックアップバケット確認中..."
+            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+
+            # バケットが存在しない場合は作成
+            if ! pnpm exec wrangler r2 bucket list | grep -q "${{ vars.R2_ASSETS_BUCKET_NAME }}"; then
+              echo "アセットバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            if ! pnpm exec wrangler r2 bucket list | grep -q "${{ vars.R2_BACKUPS_BUCKET_NAME }}"; then
+              echo "バックアップバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            # バケット使用状況確認
+            echo "本番環境R2バケット使用状況："
+            pnpm exec wrangler r2 bucket list
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          R2_ASSETS_BUCKET_NAME: ${{ vars.R2_ASSETS_BUCKET_NAME }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
 
       # デプロイ後の検証（環境に応じて厳格さを変更）
       - name: 基本スモークテスト
