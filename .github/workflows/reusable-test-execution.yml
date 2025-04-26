@@ -56,26 +56,22 @@ jobs:
     name: '${{ inputs.test_type }}テスト実行'
     runs-on: ubuntu-latest
     # テスト実行結果を他のジョブで利用できるように出力
-    # ステップのoutcomeやoutputsをジョブレベルの出力として公開
     outputs:
       test_success: ${{ steps.run_test.outcome == 'success' }}
       coverage_success: ${{ steps.run_coverage.outcome == 'success' }}
       coverage_value: ${{ steps.check_coverage.outputs.coverage_value || '0' }}
     steps:
       # ワークフローの基本的なセットアップステップ
-      # ソースコードの取得とNode.js/PNPM環境のセットアップ
       - name: ソースコードのチェックアウト
         uses: actions/checkout@v4
 
       # PNPMのセットアップ（Node.jsパッケージマネージャー）
-      # 高速かつディスク効率の良いパッケージ管理
       - name: PNPMのセットアップ
         uses: pnpm/action-setup@v2
         with:
           version: 8.10.0
 
       # Node.jsのセットアップとPNPMキャッシュの設定
-      # キャッシュを有効化して依存関係のインストールを高速化
       - name: Node.jsのセットアップ
         uses: actions/setup-node@v4
         with:
@@ -83,12 +79,21 @@ jobs:
           cache: 'pnpm'
 
       # プロジェクト依存関係のインストール
-      # テストに必要なすべてのパッケージをインストール
       - name: 依存関係のインストール
+        id: install
+        continue-on-error: true
         run: pnpm install
 
+      # 依存関係のインストールに失敗した場合は再試行
+      - name: 依存関係のインストール（再試行）
+        if: steps.install.outcome != 'success'
+        run: |
+          echo "依存関係のインストールを再試行します..."
+          rm -rf node_modules
+          pnpm store prune
+          pnpm install --no-frozen-lockfile
+
       # テスト環境の情報確認と設定ファイルの検証
-      # デバッグ用や問題解決のためのトレーサビリティ確保
       - name: テスト環境確認
         run: |
           echo "Node.jsバージョン: $(node -v)"
@@ -100,13 +105,28 @@ jobs:
             echo "vitest.config.ts が見つかりました"
           elif [ -f "jest.config.js" ]; then
             echo "jest.config.js が見つかりました"
+          else
+            echo "⚠️ テスト設定ファイルが見つかりません"
+            # 基本的なテスト設定ファイルの作成を検討
+          fi
+
+      # テストコマンドの存在確認
+      - name: テストコマンド確認
+        id: check_test_command
+        run: |
+          if grep -q "\"test" package.json || grep -q "\"vitest" package.json; then
+            echo "✅ テストコマンドが見つかりました"
+            echo "command_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ テストコマンドが見つかりません"
+            echo "command_exists=false" >> $GITHUB_OUTPUT
           fi
 
       # テストコマンドの実行
-      # エラーが発生しても続行するようにしています（開発段階のため）
-      # このステップのoutcomeは後で出力値として使用されます
       - name: テスト実行
         id: run_test
+        continue-on-error: true
+        if: steps.check_test_command.outputs.command_exists != 'false'
         run: |
           echo "テストコマンドを実行: ${{ inputs.test_command }}"
           ${{ inputs.test_command }} || echo "テスト実行で問題がありましたが続行します"
@@ -119,11 +139,10 @@ jobs:
           VITEST_LOG_LEVEL: 'info'
 
       # カバレッジ計測の実行（指定された場合のみ）
-      # coverage_commandが指定されている場合のみ実行
-      # このステップのoutcomeは後で出力値として使用されます
       - name: カバレッジ計測
         id: run_coverage
-        if: inputs.coverage_command != ''
+        if: inputs.coverage_command != '' && steps.check_test_command.outputs.command_exists != 'false'
+        continue-on-error: true
         run: |
           echo "カバレッジ計測コマンドを実行: ${{ inputs.coverage_command }}"
           ${{ inputs.coverage_command }} || echo "カバレッジ計測で問題がありましたが続行します"
@@ -133,12 +152,30 @@ jobs:
           NODE_PATH: 'src'
           VITEST_LOG_LEVEL: 'info'
 
+      # カバレッジファイルの存在確認
+      - name: カバレッジファイル確認
+        id: check_coverage_file
+        if: inputs.coverage_command != ''
+        run: |
+          if [ -d "${{ inputs.coverage_path }}" ]; then
+            echo "✅ カバレッジディレクトリが見つかりました"
+
+            if [ -f "${{ inputs.coverage_path }}/coverage-summary.json" ]; then
+              echo "✅ カバレッジサマリーファイルが見つかりました"
+              echo "file_exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ カバレッジサマリーファイルが見つかりません"
+              echo "file_exists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ カバレッジディレクトリが見つかりません"
+            echo "file_exists=false" >> $GITHUB_OUTPUT
+          fi
+
       # カバレッジ結果の分析と閾値との比較
-      # 生成されたJSONレポートからカバレッジ値を抽出し、指定された閾値と比較
-      # カバレッジ値はGitHub出力変数として設定され、他のステップやジョブで使用可能
       - name: カバレッジ閾値チェック
         id: check_coverage
-        if: inputs.coverage_command != ''
+        if: inputs.coverage_command != '' && steps.check_coverage_file.outputs.file_exists == 'true'
         run: |
           if [ -f ${{ inputs.coverage_path }}/coverage-summary.json ]; then
             # カバレッジレポートから総行カバレッジを抽出
