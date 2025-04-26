@@ -23,8 +23,8 @@ on:
 # 実行の最適化（同時実行を防止）
 # 同じブランチで複数のワークフローが実行された場合、古いものをキャンセル
 concurrency:
-  group: unit-tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: unit-tests-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: false
 
 # 必要な権限の設定
 permissions:
