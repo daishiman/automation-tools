@@ -52,6 +52,20 @@ jobs:
       - name: 依存関係のインストール
         run: pnpm install
 
+      # 環境変数の設定
+      - name: 環境変数の設定
+        id: env_setup
+        run: |
+          echo "現在の環境: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'development') }}"
+
+          if [[ "${{ github.event.inputs.environment }}" == "production" || "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "ENV_SUFFIX=prod" >> $GITHUB_ENV
+            echo "ENV_NAME=production" >> $GITHUB_ENV
+          else
+            echo "ENV_SUFFIX=preview" >> $GITHUB_ENV
+            echo "ENV_NAME=development" >> $GITHUB_ENV
+          fi
+
       # マイグレーション前のバックアップステップ
       # マイグレーション適用前にデータベースのバックアップを作成
       # エラー発生時の復旧に使用可能
@@ -69,13 +83,105 @@ jobs:
       # データベーススキーマの変更を適用
       # Cloudflare D1データベースに対してマイグレーションを実行
       - name: マイグレーション適用
-        run: pnpm db:migrate
+        run: |
+          if [[ "${{ env.ENV_NAME }}" == "production" ]]; then
+            echo "本番環境のマイグレーションを実行します..."
+            pnpm cf:db:prod:migrations:apply
+          else
+            echo "開発環境のマイグレーションを実行します..."
+            pnpm cf:db:preview:migrations:apply
+          fi
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
-          ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+          ENVIRONMENT: ${{ env.ENV_NAME }}
+
+      # KVストア初期化（必要に応じて）
+      - name: KVストア初期化
+        run: |
+          echo "KVストアを初期化しています（${{ env.ENV_NAME }}環境）..."
+
+          # アプリバージョンをKVに保存
+          if [[ "${{ env.ENV_NAME }}" == "production" ]]; then
+            # 本番環境KV初期化 - アプリバージョン
+            pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+
+            # キャッシュKVの初期化
+            echo "本番環境キャッシュKVの初期化中..."
+            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+            # セッションストアKVの初期化
+            echo "本番環境セッションストアKVの初期化中..."
+            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+            # マイグレーション情報を記録
+            pnpm kv:prod:put DB_LAST_MIGRATED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          else
+            # 開発環境KV初期化 - アプリバージョン
+            pnpm kv:dev:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+
+            # キャッシュKVの初期化
+            echo "開発環境キャッシュKVの初期化中..."
+            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+            # セッションストアKVの初期化
+            echo "開発環境セッションストアKVの初期化中..."
+            pnpm exec wrangler kv:namespace list --json | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+            # マイグレーション情報を記録
+            pnpm kv:dev:put DB_LAST_MIGRATED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          KV_CACHE_ID: ${{ secrets.KV_CACHE_ID }}
+          KV_SESSION_STORE_ID: ${{ secrets.KV_SESSION_STORE_ID }}
+
+      # R2バケット確認
+      - name: R2バケット確認
+        run: |
+          echo "R2バケットを確認しています（${{ env.ENV_NAME }}環境）..."
+
+          if [[ "${{ env.ENV_NAME }}" == "production" ]]; then
+            # 本番環境R2バケット確認
+            echo "本番環境アセットバケット確認中..."
+            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+
+            # バックアップバケット確認
+            echo "本番環境バックアップバケット確認中..."
+            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+
+            # バケット使用状況確認
+            echo "本番環境R2バケット使用状況："
+            pnpm exec wrangler r2 bucket list
+
+            # データベースバックアップの確認（最近のバックアップファイル）
+            echo "最新のデータベースバックアップ確認："
+            pnpm exec wrangler r2 object list ${{ vars.R2_BACKUPS_BUCKET_NAME }} --prefix="db-backup-" --max-keys=5 | sort -r | head -n 5 || echo "バックアップファイル一覧スキップ"
+          else
+            # 開発環境R2バケット確認
+            echo "開発環境アセットバケット確認中..."
+            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+
+            # バックアップバケット確認
+            echo "開発環境バックアップバケット確認中..."
+            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+
+            # バケット使用状況確認
+            echo "開発環境R2バケット使用状況："
+            pnpm exec wrangler r2 bucket list
+
+            # データベースバックアップの確認（最近のバックアップファイル）
+            echo "最新のデータベースバックアップ確認："
+            pnpm exec wrangler r2 object list ${{ vars.R2_BACKUPS_BUCKET_NAME }} --prefix="db-backup-" --max-keys=5 | sort -r | head -n 5 || echo "バックアップファイル一覧スキップ"
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          R2_ASSETS_BUCKET_NAME: ${{ vars.R2_ASSETS_BUCKET_NAME }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
 
       # 結果通知ステップ
       # マイグレーションの成功・失敗をSlackに通知
@@ -90,6 +196,6 @@ jobs:
           SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
           SLACK_TITLE: データベースマイグレーション ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
           SLACK_MESSAGE: |
-            環境: ${{ vars.ENVIRONMENT }}
+            環境: ${{ env.ENV_NAME }}
             データベース: ${{ vars.D1_DATABASE_NAME }}
             ステータス: ${{ job.status }}
