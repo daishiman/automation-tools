@@ -140,13 +140,13 @@ jobs:
           pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
             --env=$ENV || echo "マイグレーション一覧の取得に失敗しましたが続行します"
 
-          # マイグレーション実行（デバッグフラグ追加）
+          # マイグレーション実行（--debugフラグを削除）
           echo "マイグレーションを適用しています..."
           echo "使用データベース名: ${D1_DB_NAME}, 環境: ${ENV}"
           CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
           pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
-            --env=$ENV --debug || echo "マイグレーション適用に失敗しました"
+            --env=$ENV || echo "マイグレーション適用に失敗しました"
 
           # 成功時のメッセージ
           echo "====================================="
@@ -210,35 +210,42 @@ jobs:
           if [[ "${{ env.ENV_NAME }}" == "production" ]]; then
             # 本番環境R2バケット確認
             echo "本番環境アセットバケット確認中..."
-            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+            # EPIPEエラー対策のためファイルにリダイレクト
+            pnpm exec wrangler r2 bucket list > /tmp/r2-buckets.txt || echo "R2バケット一覧取得失敗"
+            cat /tmp/r2-buckets.txt | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
 
             # バックアップバケット確認
             echo "本番環境バックアップバケット確認中..."
-            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+            cat /tmp/r2-buckets.txt | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
 
             # バケット使用状況確認
             echo "本番環境R2バケット使用状況："
-            pnpm exec wrangler r2 bucket list
+            cat /tmp/r2-buckets.txt
 
             # データベースバックアップの確認（最近のバックアップファイル）
             echo "最新のデータベースバックアップ確認："
-            pnpm exec wrangler r2 object list ${{ vars.R2_BACKUPS_BUCKET_NAME }} --prefix="db-backup-" --max-keys=5 | sort -r | head -n 5 || echo "バックアップファイル一覧スキップ"
+            pnpm exec wrangler r2 object list ${{ vars.R2_BACKUPS_BUCKET_NAME }} --prefix="db-backup-" --max-keys=5 > /tmp/r2-backups.txt || echo "バックアップ一覧取得失敗"
+            cat /tmp/r2-backups.txt | sort -r | head -n 5 || echo "バックアップファイル一覧スキップ"
+          
           else
             # 開発環境R2バケット確認
             echo "開発環境アセットバケット確認中..."
-            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+            # EPIPEエラー対策のためファイルにリダイレクト
+            pnpm exec wrangler r2 bucket list > /tmp/r2-buckets.txt || echo "R2バケット一覧取得失敗"
+            cat /tmp/r2-buckets.txt | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
 
             # バックアップバケット確認
             echo "開発環境バックアップバケット確認中..."
-            pnpm exec wrangler r2 bucket list | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+            cat /tmp/r2-buckets.txt | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
 
             # バケット使用状況確認
             echo "開発環境R2バケット使用状況："
-            pnpm exec wrangler r2 bucket list
+            cat /tmp/r2-buckets.txt
 
             # データベースバックアップの確認（最近のバックアップファイル）
             echo "最新のデータベースバックアップ確認："
-            pnpm exec wrangler r2 object list ${{ vars.R2_BACKUPS_BUCKET_NAME }} --prefix="db-backup-" --max-keys=5 | sort -r | head -n 5 || echo "バックアップファイル一覧スキップ"
+            pnpm exec wrangler r2 object list ${{ vars.R2_BACKUPS_BUCKET_NAME }} --prefix="db-backup-" --max-keys=5 > /tmp/r2-backups.txt || echo "バックアップ一覧取得失敗"
+            cat /tmp/r2-backups.txt | sort -r | head -n 5 || echo "バックアップファイル一覧スキップ"
           fi
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
