@@ -7,7 +7,7 @@ name: 単体テスト実行
 # 3. テスト結果のサマリー出力
 on:
   push:
-    branches: [develop, main]
+    branches: [develop, main, feature/**]
     paths-ignore:
       - '**.md'
       - 'docs/**'

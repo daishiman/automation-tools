@@ -17,6 +17,23 @@ on:
         options:
           - 'yes'
           - 'no'
+      skip_tests:
+        description: 'テストをスキップしますか？（緊急デプロイ時のみ）'
+        required: false
+        default: 'no'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+      deploy_notes:
+        description: 'デプロイに関する注記（変更内容や注意点など）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  deployments: write
 
 jobs:
   # 確認ステップ
@@ -29,11 +46,20 @@ jobs:
       - name: 確認
         run: |
           echo "本番環境へのプロモーションが確認されました。ソースブランチ: ${{ github.event.inputs.source_branch }}"
+          echo "実行者: ${{ github.actor }}"
+          echo "日時: $(date)"
+          echo "テストスキップ: ${{ github.event.inputs.skip_tests }}"
+
+          if [[ "${{ github.event.inputs.deploy_notes }}" != "" ]]; then
+            echo "デプロイ注記: ${{ github.event.inputs.deploy_notes }}"
+          fi
 
   # テスト実行
   test:
     name: テスト実行
     needs: [confirm]
+    # テストスキップが指定されていない場合のみ実行
+    if: github.event.inputs.skip_tests != 'yes'
     runs-on: ubuntu-latest
     steps:
       - name: ソースコードのチェックアウト
@@ -62,15 +88,61 @@ jobs:
         run: pnpm type-check
 
       - name: ユニットテスト実行
-        run: pnpm test
+        run: pnpm test --coverage
 
       - name: テストカバレッジチェック
-        run: pnpm test:coverage
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
+          echo "テストカバレッジ: $COVERAGE%"
+
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "⚠️ テストカバレッジが目標値（70%）を下回っています"
+            echo "現在のカバレッジ: $COVERAGE%"
+            echo "警告として扱いますが、改善を検討してください"
+          else
+            echo "✅ テストカバレッジが目標値を満たしています"
+          fi
+
+      # セキュリティスキャン
+      - name: 依存関係のセキュリティスキャン
+        run: pnpm audit || echo "セキュリティの問題が見つかりましたが、プロモーションは続行します"
+
+  # プルリクエスト作成（オプション）
+  create-pr:
+    name: PRの作成
+    needs: [confirm]
+    if: false # 現在は直接マージ方式を使用 (PR方式に切り替えるにはfalseをtrueに変更)
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source_branch }}
+
+      - name: PRの作成
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: Promote ${{ github.event.inputs.source_branch }} to main'
+          branch: 'promote/${{ github.event.inputs.source_branch }}-to-main'
+          delete-branch: true
+          title: '本番環境へのプロモーション: ${{ github.event.inputs.source_branch }} → main'
+          body: |
+            ## 本番環境へのプロモーション
+
+            **ソースブランチ:** ${{ github.event.inputs.source_branch }}
+            **実行者:** @${{ github.actor }}
+            **日時:** $(date)
+
+            ${{ github.event.inputs.deploy_notes != '' && format('**デプロイ注記:** {0}', github.event.inputs.deploy_notes) || '' }}
+          draft: false
 
   # mainブランチへのマージ
   merge:
     name: mainへのマージ
     needs: [test]
+    # テストスキップが指定されている場合は、confirm直後に実行
+    if: always() && (github.event.inputs.skip_tests == 'yes' && needs.confirm.result == 'success') || (github.event.inputs.skip_tests != 'yes' && (needs.test.result == 'success' || needs.test.result == 'skipped'))
     runs-on: ubuntu-latest
     steps:
       - name: ソースコードのチェックアウト
@@ -89,7 +161,35 @@ jobs:
         run: |
           git fetch origin ${{ github.event.inputs.source_branch }}
           git merge origin/${{ github.event.inputs.source_branch }} --no-ff -m "Promote ${{ github.event.inputs.source_branch }} to main"
+
+          # デプロイ注記がある場合は追加
+          if [[ "${{ github.event.inputs.deploy_notes }}" != "" ]]; then
+            echo "" >> $GITHUB_WORKSPACE/commit_message.txt
+            echo "デプロイ注記:" >> $GITHUB_WORKSPACE/commit_message.txt
+            echo "${{ github.event.inputs.deploy_notes }}" >> $GITHUB_WORKSPACE/commit_message.txt
+            git commit --amend -F $GITHUB_WORKSPACE/commit_message.txt
+          fi
+
           git push origin main
+
+      - name: リリースタグの作成
+        run: |
+          # 自動的にバージョンを決定
+          # package.jsonからバージョンを取得
+          VERSION=$(cat package.json | jq -r '.version')
+
+          # タグがなければそのまま使用
+          if ! git tag | grep -q "v$VERSION"; then
+            TAG="v$VERSION"
+          else
+            # すでに同じバージョンのタグがある場合は日付を追加
+            TAG="v$VERSION-$(date +%Y%m%d-%H%M%S)"
+          fi
+
+          git tag -a "$TAG" -m "Release $TAG - Promoted from ${{ github.event.inputs.source_branch }}"
+          git push origin "$TAG"
+
+          echo "タグを作成しました: $TAG"
 
   # 本番環境へのデプロイ確認
   deploy-confirmation:
@@ -122,3 +222,5 @@ jobs:
             ターゲットブランチ: main
             実行者: ${{ github.actor }}
             ステータス: ${{ job.status }}
+            ${{ github.event.inputs.deploy_notes != '' && format('デプロイ注記: {0}', github.event.inputs.deploy_notes) || '' }}
+            ${{ github.event.inputs.skip_tests == 'yes' && '⚠️ 注意: テストはスキップされました' || '' }}

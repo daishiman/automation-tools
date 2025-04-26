@@ -49,7 +49,7 @@
 - **Node.jsインストール確認**
   ```bash
   node -v  # v20.10.0（または v18.18.0以上）
-  npm -v   # 10.2.3以上
+  pnpm -v   # 10.2.3以上
   ```
 
 ### パッケージマネージャー
@@ -58,7 +58,7 @@
 
   ```bash
   # npmを使用してグローバルインストール
-  npm install -g pnpm@latest
+  pnpm install -g pnpm@latest
 
   # インストール確認
   pnpm -v  # 8.10.0以上が表示されることを確認
@@ -227,7 +227,7 @@ out/
 !.env.example
 
 # デバッグ
-npm-debug.log*
+pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
@@ -265,10 +265,10 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y git curl
 
 # pnpm のインストール
-RUN npm install -g pnpm@8.10.0
+RUN pnpm install -g pnpm@8.10.0
 
 # wrangler のインストール
-RUN npm install -g wrangler@3.15.0
+RUN pnpm install -g wrangler@3.15.0
 
 # Node.jsアプリケーションの依存関係を扱うための設定
 COPY package.json pnpm-lock.yaml* ./
@@ -1755,7 +1755,7 @@ pnpm install
 
 ```bash
 # グローバルにpnpmをインストール
-npm install -g pnpm
+pnpm install -g pnpm
 
 # または代替インストール方法
 curl -fsSL https://get.pnpm.io/install.sh | sh -

@@ -1857,7 +1857,7 @@ pnpm install
 
 ```bash
 # グローバルにpnpmをインストール
-npm install -g pnpm
+pnpm install -g pnpm
 
 # または代替インストール方法
 curl -fsSL https://get.pnpm.io/install.sh | sh -

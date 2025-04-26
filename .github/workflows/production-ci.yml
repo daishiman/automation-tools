@@ -16,11 +16,30 @@ on:
       - 'docs/**'
       - 'rules/**'
   workflow_dispatch: # 手動実行も可能
+    inputs:
+      skip_approval:
+        description: '承認ステップをスキップしますか？（緊急時のみ）'
+        required: false
+        default: 'no'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+      deploy_notes:
+        description: 'デプロイに関する注記'
+        required: false
+        type: string
 
 # 実行の最適化（同時実行を防止）
 concurrency:
   group: production-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+# 必要な権限
+permissions:
+  contents: read
+  deployments: write
+  pull-requests: write
 
 jobs:
   # ステップ1: 環境セットアップ（再利用可能ワークフローから呼び出し）
@@ -68,6 +87,21 @@ jobs:
       - name: テストカバレッジチェック
         run: pnpm test:coverage
 
+      # セキュリティチェック
+      - name: セキュリティスキャン
+        run: |
+          # 依存関係の脆弱性スキャン
+          pnpm audit || echo "脆弱性が見つかりました。本番デプロイ前に確認してください。"
+
+          # ソースコードの簡易セキュリティチェック
+          if grep -r "eval(" --include="*.js" --include="*.ts" --include="*.jsx" --include="*.tsx" .; then
+            echo "⚠️ evalが使用されています。セキュリティリスクがあります。"
+          fi
+
+          if grep -r "innerHTML" --include="*.js" --include="*.ts" --include="*.jsx" --include="*.tsx" .; then
+            echo "⚠️ innerHTMLが使用されています。XSS脆弱性の可能性があります。"
+          fi
+
   # テスト結果のPRコメント（PRの場合のみ）
   # 注意: reusable-test-reporting.ymlワークフローでは以下の入力が必要です
   # - test_type: テストの種類を指定
@@ -86,6 +120,21 @@ jobs:
       comment_on_pr: true
       retention_days: 7
 
+  # デプロイ承認ステップ（プッシュまたは手動実行時のみ）
+  deploy-approval:
+    name: デプロイ承認
+    needs: [lint-and-test]
+    # プッシュまたは手動実行時（承認スキップが指定されていない場合）
+    if: (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.skip_approval == 'no'))
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: 承認待機
+        run: |
+          echo "本番環境へのデプロイが承認されました"
+          echo "承認者: ${{ github.actor }}"
+          echo "承認日時: $(date)"
+
   # ステップ3: 本番環境向けデプロイ（プッシュまたは手動実行時のみ）
   # 注意: reusable-deploy.ymlワークフローでは以下のシークレットが必要です
   # - CF_API_TOKEN: Cloudflare API トークン
@@ -94,8 +143,9 @@ jobs:
   # 本番環境では strict_validation=true で厳格な検証を行います
   deploy-production:
     name: 本番環境デプロイ
-    needs: [lint-and-test]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [lint-and-test, deploy-approval]
+    # 承認ステップが成功したか、スキップが指定されている場合
+    if: always() && ((github.event_name == 'workflow_dispatch' && github.event.inputs.skip_approval == 'yes') || needs.deploy-approval.result == 'success')
     uses: ./.github/workflows/reusable-deploy.yml
     with:
       environment: 'production'
@@ -108,3 +158,25 @@ jobs:
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+  # デプロイ完了通知（承認スキップ時のみ追加通知）
+  notify-emergency-deploy:
+    name: 緊急デプロイ通知
+    needs: [deploy-production]
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.skip_approval == 'yes'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slack通知
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: 'warning'
+          SLACK_TITLE: '⚠️ 承認スキップによる緊急デプロイが実行されました'
+          SLACK_MESSAGE: |
+            **緊急デプロイ実行**
+            環境: 本番
+            URL: https://main.automationa-tools.pages.dev/
+            実行者: ${{ github.actor }}
+            日時: $(date)
+            ${{ github.event.inputs.deploy_notes != '' && format('デプロイ注記: {0}', github.event.inputs.deploy_notes) || '注記なし' }}
