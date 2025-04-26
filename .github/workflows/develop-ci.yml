@@ -33,6 +33,7 @@ jobs:
       install_dependencies: true
 
   # ステップ2: テストと検証
+  # プッシュ、PR、手動実行時に必ず実行する
   lint-and-test:
     name: 型チェック・リント・テスト
     needs: [setup]
