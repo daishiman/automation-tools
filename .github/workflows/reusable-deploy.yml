@@ -261,6 +261,21 @@ jobs:
           echo "環境変数とワークスペース情報:"
           echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
           echo "環境名: ${{ inputs.environment }}"
+          echo "D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}"
+
+          # データベース名の確認と設定
+          if [[ -z "${{ vars.D1_DATABASE_NAME }}" ]]; then
+            echo "警告: D1_DATABASE_NAME変数が設定されていません。デフォルト値を使用します。"
+            if [[ "${{ inputs.environment }}" == "production" ]]; then
+              D1_DB_NAME="automationa-tools-db"
+            else
+              D1_DB_NAME="automationa-tools-dev-db"
+            fi
+            echo "使用するデータベース名: ${D1_DB_NAME}"
+          else
+            D1_DB_NAME="${{ vars.D1_DATABASE_NAME }}"
+            echo "使用するデータベース名: ${D1_DB_NAME}"
+          fi
 
           # ディレクトリ構造確認
           echo "作業ディレクトリの内容:"
@@ -277,11 +292,18 @@ jobs:
             echo "マイグレーション実行環境: 本番環境"
           fi
 
+          # wrangler.tomlが存在するか確認
+          if [ ! -f "wrangler.toml" ]; then
+            echo "警告: wrangler.tomlが見つかりません。"
+          else
+            echo "wrangler.toml確認済み"
+          fi
+
           # テーブル情報確認
           echo "データベーステーブル一覧を確認しています..."
           CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
-          pnpm exec wrangler d1 execute ${{ vars.D1_DATABASE_NAME }} \
+          pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
             --command="SELECT name FROM sqlite_master WHERE type='table'" \
             --env=$ENV || echo "テーブル一覧の取得に失敗しましたが続行します"
 
@@ -289,14 +311,18 @@ jobs:
           echo "マイグレーションファイルの状態を確認しています..."
           CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
-          pnpm exec wrangler d1 migrations list ${{ vars.D1_DATABASE_NAME }} \
+          pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
             --env=$ENV || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+
+          # wrangler.tomlの内容確認（秘密情報マスク）
+          echo "wrangler.tomlの構成内容確認（機密情報はマスク）:"
+          grep -v -e "apiToken" -e "password" -e "secret" wrangler.toml | cat || echo "構成ファイルの表示に失敗しました"
 
           # マイグレーション実行
           echo "マイグレーションを適用しています..."
           CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
-          pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} \
+          pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
             --env=$ENV
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
