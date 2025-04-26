@@ -84,121 +84,52 @@ jobs:
       # Cloudflare D1データベースに対してマイグレーションを実行
       - name: マイグレーション適用
         run: |
-          if [[ "${{ env.ENV_NAME }}" == "production" ]]; then
-            echo "本番環境のマイグレーションを実行します..."
+          echo "データベースマイグレーションを実行しています..."
 
-            # 環境変数とワークスペースの確認
-            echo "環境変数の確認:"
-            echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-            echo "環境名: ${{ env.ENV_NAME }}"
-            echo "D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}"
-            echo "CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}"
-            echo "D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }} (非表示)"
+          # 環境変数の確認
+          echo "環境変数とワークスペース情報:"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "環境名: ${{ github.event.inputs.environment }}"
 
-            # ハードコードされたデータベース名を使用
-            DB_NAME="automationa-tools-db"
+          # ディレクトリ構造確認
+          echo "作業ディレクトリの内容:"
+          ls -la
+          echo "マイグレーションディレクトリ:"
+          ls -la migrations || echo "マイグレーションディレクトリがありません"
 
-            # 一時的なwrangler.tomlファイルを作成
-            cat > wrangler.temp.toml << EOF
-            name = "automationa-tools"
-            compatibility_date = "2023-06-28"
-            compatibility_flags = [ "nodejs_compat" ]
-            pages_build_output_dir = "out"
-
-            # 本番環境設定
-            [env.production]
-
-            [[env.production.d1_databases]]
-            binding = "DB"
-            database_name = "automationa-tools-db"
-            database_id = "${{ secrets.D1_DATABASE_ID }}"
-            migrations_dir = "migrations"
-
-            [[env.production.kv_namespaces]]
-            binding = "CACHE_PROD"
-            id = "${{ secrets.KV_CACHE_ID }}"
-
-            [[env.production.kv_namespaces]]
-            binding = "SESSION_STORE_PROD"
-            id = "${{ secrets.KV_SESSION_STORE_ID }}"
-
-            [[env.production.r2_buckets]]
-            binding = "R2_STORAGE"
-            bucket_name = "${{ vars.R2_ASSETS_BUCKET_NAME }}"
-
-            [[env.production.r2_buckets]]
-            binding = "R2_BACKUP"
-            bucket_name = "${{ vars.R2_BACKUPS_BUCKET_NAME }}"
-            EOF
-
-            # 一時設定ファイルの内容確認（秘密情報を隠して）
-            echo "一時wrangler.tomlファイルの構造:"
-            cat wrangler.temp.toml | sed 's/database_id = ".*"/database_id = "***"/g' | sed 's/id = ".*"/id = "***"/g'
-
-            # 環境変数ファイルを使用してマイグレーション実行
-            echo "データベース名: ${DB_NAME}"
-            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} pnpm exec wrangler d1 migrations apply "${DB_NAME}" --config=wrangler.temp.toml --env=production
-
-            # 一時ファイルの削除
-            rm wrangler.temp.toml
+          # 環境設定
+          if [[ "${{ github.event.inputs.environment }}" == "development" || "${{ github.event.inputs.environment }}" == "preview" ]]; then
+            ENV="preview"
+            echo "マイグレーション実行環境: 開発/プレビュー環境"
+          elif [[ "${{ github.event.inputs.environment }}" == "production" ]]; then
+            ENV="production"
+            echo "マイグレーション実行環境: 本番環境"
           else
-            echo "開発環境のマイグレーションを実行します..."
-
-            # 環境変数とワークスペースの確認
-            echo "環境変数の確認:"
-            echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-            echo "環境名: ${{ env.ENV_NAME }}"
-            echo "D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}"
-            echo "CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}"
-            echo "D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }} (非表示)"
-
-            # ハードコードされたデータベース名を使用
-            DB_NAME="automationa-tools-dev-db"
-
-            # 一時的なwrangler.tomlファイルを作成
-            cat > wrangler.temp.toml << EOF
-            name = "automationa-tools"
-            compatibility_date = "2023-06-28"
-            compatibility_flags = [ "nodejs_compat" ]
-            pages_build_output_dir = "out"
-
-            # 開発環境設定
-            [env.preview]
-
-            [[env.preview.d1_databases]]
-            binding = "DB"
-            database_name = "automationa-tools-dev-db"
-            database_id = "${{ secrets.D1_DATABASE_ID }}"
-            migrations_dir = "migrations"
-
-            [[env.preview.kv_namespaces]]
-            binding = "CACHE_DEV"
-            id = "${{ secrets.KV_CACHE_ID }}"
-
-            [[env.preview.kv_namespaces]]
-            binding = "SESSION_STORE_DEV"
-            id = "${{ secrets.KV_SESSION_STORE_ID }}"
-
-            [[env.preview.r2_buckets]]
-            binding = "R2_STORAGE"
-            bucket_name = "${{ vars.R2_ASSETS_BUCKET_NAME }}"
-
-            [[env.preview.r2_buckets]]
-            binding = "R2_BACKUP"
-            bucket_name = "${{ vars.R2_BACKUPS_BUCKET_NAME }}"
-            EOF
-
-            # 一時設定ファイルの内容確認（秘密情報を隠して）
-            echo "一時wrangler.tomlファイルの構造:"
-            cat wrangler.temp.toml | sed 's/database_id = ".*"/database_id = "***"/g' | sed 's/id = ".*"/id = "***"/g'
-
-            # 環境変数ファイルを使用してマイグレーション実行
-            echo "データベース名: ${DB_NAME}"
-            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} pnpm exec wrangler d1 migrations apply "${DB_NAME}" --config=wrangler.temp.toml --env=preview
-
-            # 一時ファイルの削除
-            rm wrangler.temp.toml
+            ENV="preview"
+            echo "未指定のため、デフォルトでプレビュー環境を使用します"
           fi
+
+          # テーブル情報確認
+          echo "データベーステーブル一覧を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 execute ${{ vars.D1_DATABASE_NAME }} \
+            --command="SELECT name FROM sqlite_master WHERE type='table'" \
+            --env=$ENV || echo "テーブル一覧の取得に失敗しましたが続行します"
+
+          # マイグレーションファイルの状態確認
+          echo "マイグレーションファイルの状態を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations list ${{ vars.D1_DATABASE_NAME }} \
+            --env=$ENV || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+
+          # マイグレーション実行
+          echo "マイグレーションを適用しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} \
+            --env=$ENV
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
