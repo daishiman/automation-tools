@@ -26,6 +26,7 @@ export default defineConfig({
       '**/.{idea,git,cache,output,temp}/**',
       '**/scripts/**',
       '**/*.d.ts',
+      process.env.CI === 'true' && !process.env.RUN_PERFORMANCE_TESTS ? '**/performance/**' : '',
     ],
   },
   resolve: {
