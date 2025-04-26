@@ -1,0 +1,168 @@
+name: 再利用可能デプロイ
+
+# 環境ごとのデプロイを一元化した再利用可能ワークフロー
+# Cloudflareを使用してデプロイを行います（AWSは使用しません）
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: '環境名（development/production）'
+        required: true
+        type: string
+      app_url:
+        description: 'アプリケーションのURL（スラッシュの有無に注意）'
+        required: true
+        type: string
+      branch_name:
+        description: 'デプロイ先のブランチ名（develop/main）'
+        required: true
+        type: string
+      next_public_env:
+        description: '環境変数 NEXT_PUBLIC_ENV の値'
+        required: false
+        default: 'development'
+        type: string
+      strict_validation:
+        description: '厳格な検証を行うかどうか'
+        required: false
+        default: false
+        type: boolean
+      send_notification:
+        description: 'デプロイ通知を送信するかどうか'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      CF_API_TOKEN:
+        required: true
+      CF_ACCOUNT_ID:
+        required: true
+      SLACK_WEBHOOK:
+        required: false
+
+jobs:
+  build:
+    name: '${{ inputs.environment }}環境向けビルド'
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # ビルドキャッシュの活用
+      - name: Next.jsキャッシュのセットアップ
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+          key: ${{ runner.os }}-nextjs-${{ inputs.environment }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ inputs.environment }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # 環境固有の設定でビルド
+      - name: '${{ inputs.environment }}環境向けビルド'
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_ENV: ${{ inputs.next_public_env }}
+          NEXT_PUBLIC_API_BASE_URL: /api
+          NEXT_PUBLIC_APP_URL: ${{ inputs.app_url }}
+
+      - name: ビルド成果物の保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-${{ inputs.environment }}
+          path: out/
+          retention-days: 1 # ビルド成果物は短期間のみ保持
+
+  deploy:
+    name: '${{ inputs.environment }}環境デプロイ'
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }} # GitHub環境を指定（環境変数・シークレットのスコープ）
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # ビルド成果物を再利用
+      - name: ビルド成果物のダウンロード
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-${{ inputs.environment }}
+          path: out/
+
+      - name: 依存関係のインストール（本番用）
+        run: pnpm install --prod
+
+      # Cloudflare Pagesへのデプロイ
+      - name: Cloudflare Pagesへのデプロイ
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy out --project-name=automationa-tools --branch=${{ inputs.branch_name }}
+
+      - name: デプロイURLの出力
+        run: echo "✅ ${{ inputs.environment }}環境がデプロイされました： ${{ steps.deploy.outputs.url }}"
+
+      # デプロイ後の検証（環境に応じて厳格さを変更）
+      - name: 基本スモークテスト
+        run: |
+          # 基本的な疎通確認
+          curl -sSf "${{ inputs.app_url }}" > /dev/null
+          echo "基本スモークテスト成功"
+
+      # 本番環境など厳格な検証が必要な場合のみ追加検証
+      - name: 厳格なスモークテスト
+        if: inputs.strict_validation
+        run: |
+          # ステータスコード確認
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${{ inputs.app_url }}")
+          if [ "$STATUS_CODE" -ne 200 ]; then
+            echo "エラー: ステータスコードが200ではありません: $STATUS_CODE"
+            exit 1
+          fi
+
+          echo "厳格なスモークテスト成功"
+
+      # 通知の設定
+      - name: 検証結果の通知
+        if: inputs.send_notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          # 条件付きでwebhookURLを設定
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: ${{ inputs.environment }}環境デプロイ ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: ${{ inputs.environment }}
+            URL: ${{ inputs.app_url }}
+            ステータス: ${{ job.status }}

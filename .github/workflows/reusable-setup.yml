@@ -1,0 +1,76 @@
+name: 再利用可能セットアップ
+
+# Node.js環境のセットアップを一元化した再利用可能ワークフロー
+# このワークフローは、他のワークフローから呼び出して Node.js と PNPM の環境を統一的にセットアップします
+on:
+  workflow_call:
+    inputs:
+      node_version:
+        description: 'Node.jsのバージョン'
+        required: false
+        default: '20'
+        type: string
+      pnpm_version:
+        description: 'PNPMのバージョン'
+        required: false
+        default: '8.10.0'
+        type: string
+      install_dependencies:
+        description: '依存関係をインストールするかどうか'
+        required: false
+        default: true
+        type: boolean
+      production_only:
+        description: '本番環境用の依存関係のみをインストールするかどうか'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  setup:
+    name: 環境セットアップ
+    runs-on: ubuntu-latest
+    steps:
+      # ステップ1: ソースコードの取得
+      # GitHub Actionsの標準アクションを使用して最新のコードをチェックアウト
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      # ステップ2: PNPMのインストールと設定
+      # 指定されたバージョンのPNPMをセットアップ（デフォルトは8.10.0）
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: ${{ inputs.pnpm_version }}
+
+      # ステップ3: Node.jsのインストールと設定
+      # 指定されたバージョンのNode.jsをセットアップ（デフォルトは20）
+      # PNPMのキャッシュを有効化して依存関係のインストールを高速化
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+          cache: 'pnpm'
+
+      # ステップ4: 依存関係のインストール（オプション）
+      # install_dependenciesがtrueの場合のみ実行
+      # production_onlyがtrueの場合は、本番用の依存関係のみをインストール
+      - name: 依存関係のインストール
+        if: inputs.install_dependencies
+        run: |
+          if [ "${{ inputs.production_only }}" == "true" ]; then
+            pnpm install --prod
+            echo "本番用依存関係をインストールしました"
+          else
+            pnpm install
+            echo "全依存関係をインストールしました"
+          fi
+
+      # ステップ5: 環境情報の出力
+      # デバッグ用に現在の環境情報を出力
+      - name: 環境情報の出力
+        run: |
+          echo "Node.jsバージョン: $(node -v)"
+          echo "NPMバージョン: $(npm -v)"
+          echo "PNPMバージョン: $(pnpm -v)"
+          echo "作業ディレクトリ: $(pwd)"
