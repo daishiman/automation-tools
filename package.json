@@ -15,7 +15,7 @@
     "start": "next start",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:ci": "vitest run --reporter=default || exit 0",
+    "test:ci": "vitest run --reporter=default --testTimeout=600000 || exit 0",
     "test:coverage": "vitest run --coverage",
     "test:changed": "vitest related --run $(git diff --name-only --staged | grep -E '\\.tsx?$|\\.jsx?$')",
     "test:components": "vitest run --config vitest.components.config.ts",

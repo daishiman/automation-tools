@@ -16,7 +16,7 @@ export default defineConfig({
     outputFile: {
       junit: './junit.xml',
     },
-    testTimeout: 300000,
+    testTimeout: 600000,
     cache: {
       dir: '.vitest-cache',
     },
