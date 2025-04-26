@@ -316,3 +316,37 @@ pnpm git:setup-wrapper
 ```
 
 このセットアップにより、`git add-with-test`コマンドが使用可能になります。
+
+## 開発の始め方
+
+### 環境構築
+
+```
+# パッケージのインストール
+pnpm install
+
+# 環境変数の設定
+cp .env.example .env
+```
+
+### Git フックのセットアップ
+
+このプロジェクトでは、`git add` コマンド実行時に自動的にコード品質チェックを行うカスタムGitフックを利用できます。
+セットアップするには以下のコマンドを実行してください：
+
+```
+# カスタムGitフックのインストール
+pnpm git-hooks:install
+
+# Gitエイリアスの設定
+git config --local alias.real-add add
+git config --local alias.add '!$(git rev-parse --git-dir)/hooks/pre-add'
+```
+
+これにより、`git add` コマンドを実行すると自動的に以下のチェックが実行されます：
+
+- リント (ESLint)
+- フォーマット (Prettier)
+- 型チェック (TypeScript)
+
+エラーがある場合は修正するように促されます。チェックが成功すると、ファイルがステージングに追加されます。

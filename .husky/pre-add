@@ -1,50 +1,100 @@
 #!/bin/sh
 
-echo "🔍 git add前に簡易チェック実行"
+echo "🔍 git add前のチェック実行中... (pre-addフック)"
 
 # プロジェクトのルートディレクトリに移動
-cd "$(git rev-parse --show-toplevel)"
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# 開始時間を記録
+start_time=$(date +%s)
 
 # 変更されたファイルを取得
-all_staged_files=$(git diff --cached --name-only --diff-filter=ACM)
-js_ts_files=$(echo "$all_staged_files" | grep -E '\.tsx?$|\.jsx?$' || true)
-rules_md_files=$(echo "$all_staged_files" | grep -E '^rules/.+\.md$' || true)
+all_changed_files=$(git diff --name-only)
+js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' | grep -v '^scripts/' || true)
+css_json_md_files=$(echo "$all_changed_files" | grep -E '\.(json|md|mdx|css)$' || true)
+rules_files=$(echo "$all_changed_files" | grep -E '^rules/.+\.md$' || true)
 
-# JS/TSファイルが存在する場合、lint と format を実行
-if [ ! -z "$js_ts_files" ]; then
-  echo "🧹 ESLint実行中..."
-  # lint-stagedを優先使用
-  if [ -f "lint-staged.config.js" ]; then
-    pnpm lint-staged
-    lint_result=$?
-  else
-    pnpm lint
-    lint_result=$?
-  fi
-
-  if [ $lint_result -ne 0 ]; then
-    echo "❌ Lintエラーがあります。修正してから再度 git add を実行してください。"
-    exit 1
-  fi
-
-  echo "💅 Prettier実行中..."
-  pnpm format
-  format_result=$?
-
-  if [ $format_result -ne 0 ]; then
-    echo "❌ フォーマットエラーがあります。修正してから再度 git add を実行してください。"
-    exit 1
-  fi
-
-  echo "✅ Lintとフォーマットチェック成功！"
+# 変更がない場合は早期終了
+if [ -z "$all_changed_files" ]; then
+  echo "📝 変更ファイルなし。チェックをスキップします。"
+  exit 0
 fi
 
-# rulesディレクトリのMarkdownファイルがステージングされている場合
-if [ ! -z "$rules_md_files" ]; then
-  echo "📝 rulesディレクトリの変更を検出。基本検証を実行..."
+# エラーが発生したかどうかを追跡
+has_errors=0
+
+# 1. JS/TSファイルのlintとフォーマット
+if [ ! -z "$js_ts_files" ]; then
+  echo "🧹 ESLint/Prettier実行中... (pre-addフック)"
+  # ESLint実行
+  pnpm eslint --fix $js_ts_files
+  lint_result=$?
+
+  if [ $lint_result -ne 0 ]; then
+    echo "❌ ESLintエラーが見つかりました。修正してから再度 git add を実行してください。"
+    has_errors=1
+  fi
+
+  # Prettier実行
+  pnpm prettier --write $js_ts_files
+  prettier_result=$?
+
+  if [ $prettier_result -ne 0 ]; then
+    echo "❌ Prettierの実行に失敗しました。"
+    has_errors=1
+  fi
+fi
+
+# 2. CSS/JSON/MD/MDXファイルのフォーマット
+if [ ! -z "$css_json_md_files" ]; then
+  echo "CSS/JSON/Markdownファイルのフォーマット中... (pre-addフック)"
+  pnpm prettier --write $css_json_md_files
+  css_json_md_result=$?
+
+  if [ $css_json_md_result -ne 0 ]; then
+    echo "❌ フォーマットに失敗しました。"
+    has_errors=1
+  fi
+fi
+
+# 3. 型チェック（JSファイルのみの場合はスキップ可能）
+if [ $has_errors -eq 0 ] && echo "$js_ts_files" | grep -q "\.tsx\?$"; then
+  echo "📘 型チェック実行中... (pre-addフック)"
+  pnpm type-check
+  type_check_result=$?
+
+  if [ $type_check_result -ne 0 ]; then
+    echo "❌ 型エラーが見つかりました。修正してから再度 git add を実行してください。"
+    has_errors=1
+  fi
+else
+  echo "📝 TSファイルの変更なし。型チェックをスキップします。"
+fi
+
+# 4. JS/TSファイルの変更がある場合、関連テスト実行
+if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ]; then
+  echo "🧪 変更関連テスト実行中..."
+
+  # 関連テスト実行（効率的な方法）
+  NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest related --run $js_ts_files --passWithNoTests
+  test_result=$?
+
+  if [ $test_result -ne 0 ]; then
+    echo "❌ テストが失敗しました。修正してから再度 git add を実行してください。"
+    has_errors=1
+  else
+    echo "✅ テストが成功しました。"
+  fi
+else
+  echo "📝 テスト対象ファイルなし。テストをスキップします。"
+fi
+
+# 5. rulesディレクトリの変更ファイルのみ基本検証
+if [ $has_errors -eq 0 ] && [ ! -z "$rules_files" ]; then
+  echo "📋 ドキュメントファイルの基本検証中..."
   rules_errors=0
 
-  for file in $rules_md_files; do
+  for file in $rules_files; do
     # ファイルの基本検証
     echo "  - $file の基本検証中..."
 
@@ -58,45 +108,31 @@ if [ ! -z "$rules_md_files" ]; then
     # 2. 最低限の構造チェック
     if ! grep -q "^# " "$file"; then
       echo "    ⚠️ $file に適切な見出し(#)がありません"
-    fi
-
-    # 3. 文法エラーチェック（不完全な見出しや箇条書き）
-    if grep -q "^#\s*$" "$file" || grep -q "^-\s*$" "$file"; then
-      echo "    ⚠️ $file に不完全な見出しまたは箇条書きがあります"
+      rules_errors=1
     fi
   done
 
   if [ $rules_errors -ne 0 ]; then
     echo "❌ rulesファイルに問題があります。修正してから再度 git add を実行してください。"
-    exit 1
+    has_errors=1
   else
     echo "✅ rulesファイルの基本検証に成功しました"
   fi
+else
+  echo "📝 rules変更なし。ドキュメントチェックをスキップします。"
 fi
 
-# JS/TSファイルがない場合はスキップ
-if [ -z "$js_ts_files" ]; then
-  echo "📝 JSまたはTSファイルの変更なし。テストをスキップします。"
-  exit 0
-fi
+# 実行終了時間と結果表示
+end_time=$(date +%s)
+execution_time=$((end_time - start_time))
 
-# 特定のファイル数が多い場合はスキップ（オプション）
-file_count=$(echo "$js_ts_files" | wc -l)
-if [ $file_count -gt 10 ]; then
-  echo "⚠️ 変更ファイル数が多い(${file_count}個)。詳細テストはスキップします。"
-  exit 0
-fi
-
-# 関連テスト実行（高速モード）
-echo "🧪 変更関連テスト実行中..."
-# 変更されたファイルに対するテスト実行(効率的な方法)
-NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest related --run $(git diff --name-only --staged | grep -E '\.tsx?$|\.jsx?$') --passWithNoTests
-test_exit_code=$?
-
-if [ $test_exit_code -ne 0 ]; then
-  echo "❌ テスト失敗。修正してから再度実行してください。"
+# 成功・失敗の表示
+if [ $has_errors -eq 1 ]; then
+  echo "❌ チェック中にエラーが見つかりました。修正してから再度 git add を実行してください。(pre-addフック)"
+  echo "⏱️ 実行時間: ${execution_time}秒"
   exit 1
 else
-  echo "✅ テスト成功！ステージングを続行します。"
+  echo "✅ すべてのチェック成功！ステージングを続行します。(pre-addフック)"
+  echo "⏱️ 実行時間: ${execution_time}秒"
   exit 0
 fi

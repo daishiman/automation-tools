@@ -48,14 +48,8 @@ if (fs.existsSync(envDevelopmentPath)) {
 
 // GitHub API関連の設定
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
-const OWNER =
-  process.env.GITHUB_OWNER ||
-  process.env.GITHUB_REPOSITORY_OWNER ||
-  'daishiman';
-const REPO =
-  process.env.GITHUB_REPO ||
-  process.env.GITHUB_REPOSITORY_NAME ||
-  'automation-tools';
+const OWNER = process.env.GITHUB_OWNER || process.env.GITHUB_REPOSITORY_OWNER || 'daishiman';
+const REPO = process.env.GITHUB_REPO || process.env.GITHUB_REPOSITORY_NAME || 'automation-tools';
 const OUTPUT_DIR = process.env.OUTPUT_DIR || 'github-actions-results';
 const LOGS_DIR = path.join(OUTPUT_DIR, 'logs');
 
@@ -170,12 +164,24 @@ async function getWorkflows() {
     // テストモードの場合はダミーデータを返す
     if (isTestMode()) {
       return [
-        { id: 1, name: 'テスト用ワークフロー1', path: '.github/workflows/test1.yml', state: 'active' },
-        { id: 2, name: 'テスト用ワークフロー2', path: '.github/workflows/test2.yml', state: 'active' },
+        {
+          id: 1,
+          name: 'テスト用ワークフロー1',
+          path: '.github/workflows/test1.yml',
+          state: 'active',
+        },
+        {
+          id: 2,
+          name: 'テスト用ワークフロー2',
+          path: '.github/workflows/test2.yml',
+          state: 'active',
+        },
       ];
     }
 
-    console.log(`GitHub APIリクエスト: ワークフロー一覧を取得します (owner: ${OWNER}, repo: ${REPO})`);
+    console.log(
+      `GitHub APIリクエスト: ワークフロー一覧を取得します (owner: ${OWNER}, repo: ${REPO})`
+    );
     const response = await octokit.rest.actions.listRepoWorkflows({
       owner: OWNER,
       repo: REPO,
@@ -192,7 +198,9 @@ async function getWorkflows() {
       console.error('リポジトリ名と所有者名を確認してください。');
     } else if (error.status === 401) {
       console.error('認証エラー: GitHubトークンを確認してください。');
-      console.error('GitHub Personal Access Tokenが有効かどうか、必要なスコープ（repo, workflow）が付与されているかを確認してください。');
+      console.error(
+        'GitHub Personal Access Tokenが有効かどうか、必要なスコープ（repo, workflow）が付与されているかを確認してください。'
+      );
     } else if (error.status === 403) {
       console.error('アクセス拒否: APIレート制限に達したか、権限が不足しています。');
     }
@@ -200,8 +208,18 @@ async function getWorkflows() {
     // テストモードに自動切り替え
     console.log('エラーが発生したため、テストモードに切り替えます...');
     return [
-      { id: 1, name: 'テスト用ワークフロー1', path: '.github/workflows/test1.yml', state: 'active' },
-      { id: 2, name: 'テスト用ワークフロー2', path: '.github/workflows/test2.yml', state: 'active' },
+      {
+        id: 1,
+        name: 'テスト用ワークフロー1',
+        path: '.github/workflows/test1.yml',
+        state: 'active',
+      },
+      {
+        id: 2,
+        name: 'テスト用ワークフロー2',
+        path: '.github/workflows/test2.yml',
+        state: 'active',
+      },
     ];
   }
 }
@@ -316,11 +334,14 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber, retries = 2)
     const zipPath = path.join(OUTPUT_DIR, zipFilename);
 
     // レスポンスの詳細をログに出力（デバッグ用）
-    console.log(`ログダウンロードAPIのレスポンス:`, JSON.stringify({
-      status: response.status,
-      headers: response.headers,
-      hasUrl: !!response.url,
-    }));
+    console.log(
+      `ログダウンロードAPIのレスポンス:`,
+      JSON.stringify({
+        status: response.status,
+        headers: response.headers,
+        hasUrl: !!response.url,
+      })
+    );
 
     // URLが返された場合、fetch APIを使って直接ダウンロード
     if (response.url) {
@@ -384,23 +405,29 @@ async function downloadWorkflowLogs(runId, workflowName, runNumber, retries = 2)
 
     // 認証エラーの場合は特別なメッセージを表示
     if (error.status === 401) {
-      console.error(`  認証エラー: GitHub Tokenが正しく設定されていないか、必要な権限がありません。`);
+      console.error(
+        `  認証エラー: GitHub Tokenが正しく設定されていないか、必要な権限がありません。`
+      );
       console.error(`  必要なスコープ: repo, workflow`);
       console.error(`  GitHub Personal Access Tokenの設定方法を確認してください。`);
     } else if (error.status === 404) {
-      console.error(`  リソースが見つかりません: リポジトリ名、所有者名、またはワークフローIDを確認してください。`);
+      console.error(
+        `  リソースが見つかりません: リポジトリ名、所有者名、またはワークフローIDを確認してください。`
+      );
       console.error(`  現在の設定: OWNER=${OWNER}, REPO=${REPO}, RUN_ID=${runId}`);
     } else if (error.status === 403) {
       console.error(`  アクセス拒否: APIレート制限に達したか、権限が不足しています。`);
     } else if (error.status === 410) {
-      console.error(`  リソースが利用できなくなりました: ログが既に期限切れになっている可能性があります。`);
+      console.error(
+        `  リソースが利用できなくなりました: ログが既に期限切れになっている可能性があります。`
+      );
       console.error(`  GitHub Actionsのログは90日間のみ保持されます。`);
     }
 
     // リトライ回数が残っている場合、再試行
     if (retries > 0 && error.status !== 401 && error.status !== 404) {
       console.log(`3秒後にダウンロードを再試行します... (残り ${retries} 回)`);
-      await new Promise(resolve => setTimeout(resolve, 3000)); // 3秒待機
+      await new Promise((resolve) => setTimeout(resolve, 3000)); // 3秒待機
       return await downloadWorkflowLogs(runId, workflowName, runNumber, retries - 1);
     }
 
@@ -461,8 +488,18 @@ async function main() {
 
       // ダミーワークフロー情報の作成
       const dummyWorkflows = [
-        { id: 1, name: 'テスト用ワークフロー1', path: '.github/workflows/test1.yml', state: 'active' },
-        { id: 2, name: 'テスト用ワークフロー2', path: '.github/workflows/test2.yml', state: 'active' },
+        {
+          id: 1,
+          name: 'テスト用ワークフロー1',
+          path: '.github/workflows/test1.yml',
+          state: 'active',
+        },
+        {
+          id: 2,
+          name: 'テスト用ワークフロー2',
+          path: '.github/workflows/test2.yml',
+          state: 'active',
+        },
       ];
 
       console.log(`${dummyWorkflows.length}個のテストワークフローを生成しました。`);
@@ -471,7 +508,7 @@ async function main() {
       saveResultsToFile(dummyWorkflows, 'test-workflows.json');
 
       // ダミー実行結果の作成
-      const dummyResults = dummyWorkflows.map(workflow => ({
+      const dummyResults = dummyWorkflows.map((workflow) => ({
         workflow_name: workflow.name,
         workflow_id: workflow.id,
         run_id: 1000 + workflow.id,
@@ -493,17 +530,17 @@ async function main() {
                 name: 'チェックアウト',
                 status: 'completed',
                 conclusion: 'success',
-                number: 1
+                number: 1,
               },
               {
                 name: 'テスト実行',
                 status: 'completed',
                 conclusion: 'success',
-                number: 2
-              }
-            ]
-          }
-        ]
+                number: 2,
+              },
+            ],
+          },
+        ],
       }));
 
       // テスト結果を保存
@@ -511,7 +548,10 @@ async function main() {
       console.log('テストデータを保存しました: github-actions-results/test-workflow-results.json');
 
       // 統合ログに追加
-      appendToMergedLog('テストモード情報', 'テストモードで実行しました。実際のGitHub APIは使用していません。');
+      appendToMergedLog(
+        'テストモード情報',
+        'テストモードで実行しました。実際のGitHub APIは使用していません。'
+      );
 
       // 後処理
       closeMergedLog();
@@ -521,7 +561,9 @@ async function main() {
 
     // OctokitクライアントがGITHUB_TOKENを使用しているか再確認
     if (!GITHUB_TOKEN) {
-      console.warn('警告: GitHub API認証が設定されていません。認証なしでAPIリクエストを実行します。');
+      console.warn(
+        '警告: GitHub API認証が設定されていません。認証なしでAPIリクエストを実行します。'
+      );
       console.warn('レート制限が厳しく適用される可能性があります。');
     }
 
@@ -562,7 +604,9 @@ async function main() {
             try {
               await downloadWorkflowLogs(run.id, workflow.name, run.run_number);
             } catch (logError) {
-              console.error(`  ログのダウンロードに失敗しました (ID: ${run.id}): ${logError.message}`);
+              console.error(
+                `  ログのダウンロードに失敗しました (ID: ${run.id}): ${logError.message}`
+              );
             }
           }
 
@@ -583,12 +627,14 @@ async function main() {
               conclusion: job.conclusion,
               started_at: job.started_at,
               completed_at: job.completed_at,
-              steps: job.steps ? job.steps.map((step) => ({
-                name: step.name,
-                status: step.status,
-                conclusion: step.conclusion,
-                number: step.number,
-              })) : [],
+              steps: job.steps
+                ? job.steps.map((step) => ({
+                    name: step.name,
+                    status: step.status,
+                    conclusion: step.conclusion,
+                    number: step.number,
+                  }))
+                : [],
             })),
           });
         }
@@ -615,7 +661,9 @@ async function main() {
             try {
               await downloadWorkflowLogs(run.id, workflowInfo.name, run.run_number);
             } catch (logError) {
-              console.error(`  ログのダウンロードに失敗しました (ID: ${run.id}): ${logError.message}`);
+              console.error(
+                `  ログのダウンロードに失敗しました (ID: ${run.id}): ${logError.message}`
+              );
             }
           }
 
@@ -636,12 +684,14 @@ async function main() {
               conclusion: job.conclusion,
               started_at: job.started_at,
               completed_at: job.completed_at,
-              steps: job.steps ? job.steps.map((step) => ({
-                name: step.name,
-                status: step.status,
-                conclusion: step.conclusion,
-                number: step.number,
-              })) : [],
+              steps: job.steps
+                ? job.steps.map((step) => ({
+                    name: step.name,
+                    status: step.status,
+                    conclusion: step.conclusion,
+                    number: step.number,
+                  }))
+                : [],
             })),
           });
         }

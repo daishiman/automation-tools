@@ -27,15 +27,15 @@ const inputFile = args[0]; // 入力JSONファイル名
 // ワークフローの種類によって色を変えるマッピング
 const workflowColorMap = {
   'コード品質チェック（リント）': '#673AB7', // 紫
-  'コードフォーマットチェック': '#2196F3', // 青
-  '単体テスト実行': '#4CAF50', // 緑
-  '統合テスト実行': '#FF9800', // オレンジ
+  コードフォーマットチェック: '#2196F3', // 青
+  単体テスト実行: '#4CAF50', // 緑
+  統合テスト実行: '#FF9800', // オレンジ
   '開発環境 CI/CD': '#03A9F4', // 水色
   '本番環境 CI/CD': '#F44336', // 赤
-  '再利用可能セットアップ': '#9E9E9E', // グレー
-  'データベースマイグレーション': '#795548', // 茶色
-  'デプロイ後検証': '#009688', // ティール
-  '本番環境へのプロモート': '#E91E63', // ピンク
+  再利用可能セットアップ: '#9E9E9E', // グレー
+  データベースマイグレーション: '#795548', // 茶色
+  デプロイ後検証: '#009688', // ティール
+  本番環境へのプロモート: '#E91E63', // ピンク
 };
 
 /**
@@ -95,13 +95,16 @@ function generateJobsHTML(jobs) {
             job.completed_at ? new Date(job.completed_at).toLocaleString() : '未完了'
           }</div>
         </div>
-        ${job.steps && job.steps.length > 0 ?
-        `<div class="job-steps">
+        ${
+          job.steps && job.steps.length > 0
+            ? `<div class="job-steps">
           <h4>ステップ:</h4>
           <ul class="steps-list">
             ${generateStepsHTML(job.steps)}
           </ul>
-        </div>` : '<div class="job-steps"><p>ステップ情報なし</p></div>'}
+        </div>`
+            : '<div class="job-steps"><p>ステップ情報なし</p></div>'
+        }
       </div>
     `;
   });
@@ -552,41 +555,75 @@ function generateHTMLReport(data) {
           <circle cx="50" cy="50" r="45" fill="transparent" stroke="#eee" stroke-width="10" />
 
           <!-- 成功部分 -->
-          ${successCount > 0 ? `
+          ${
+            successCount > 0
+              ? `
           <circle cx="50" cy="50" r="45" fill="transparent" stroke="#4caf50" stroke-width="10"
             stroke-dasharray="${successPercent * circumference} ${circumference}"
             transform="rotate(-90 50 50)" />
-          ` : ''}
+          `
+              : ''
+          }
 
           <!-- 失敗部分 -->
-          ${failureCount > 0 ? `
+          ${
+            failureCount > 0
+              ? `
           <circle cx="50" cy="50" r="45" fill="transparent" stroke="#f44336" stroke-width="10"
             stroke-dasharray="${failurePercent * circumference} ${circumference}"
             stroke-dashoffset="${-1 * (successPercent * circumference)}"
             transform="rotate(-90 50 50)" />
-          ` : ''}
+          `
+              : ''
+          }
 
           <!-- キャンセル部分 -->
-          ${cancelledCount > 0 ? `
+          ${
+            cancelledCount > 0
+              ? `
           <circle cx="50" cy="50" r="45" fill="transparent" stroke="#ff9800" stroke-width="10"
             stroke-dasharray="${cancelledPercent * circumference} ${circumference}"
             stroke-dashoffset="${-1 * ((successPercent + failurePercent) * circumference)}"
             transform="rotate(-90 50 50)" />
-          ` : ''}
+          `
+              : ''
+          }
 
           <!-- 進行中部分 -->
-          ${inProgressCount > 0 ? `
+          ${
+            inProgressCount > 0
+              ? `
           <circle cx="50" cy="50" r="45" fill="transparent" stroke="#2196f3" stroke-width="10"
             stroke-dasharray="${inProgressPercent * circumference} ${circumference}"
-            stroke-dashoffset="${-1 * ((successPercent + failurePercent + cancelledPercent) * circumference)}"
+            stroke-dashoffset="${
+              -1 * ((successPercent + failurePercent + cancelledPercent) * circumference)
+            }"
             transform="rotate(-90 50 50)" />
-          ` : ''}
+          `
+              : ''
+          }
         </svg>
         <div style="margin-top: 15px; display: flex; justify-content: center; gap: 15px; flex-wrap: wrap;">
-          ${successCount > 0 ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #4caf50; margin-right: 5px;"></span> 成功 (${successCount})</div>` : ''}
-          ${failureCount > 0 ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #f44336; margin-right: 5px;"></span> 失敗 (${failureCount})</div>` : ''}
-          ${cancelledCount > 0 ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #ff9800; margin-right: 5px;"></span> キャンセル (${cancelledCount})</div>` : ''}
-          ${inProgressCount > 0 ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #2196f3; margin-right: 5px;"></span> 進行中 (${inProgressCount})</div>` : ''}
+          ${
+            successCount > 0
+              ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #4caf50; margin-right: 5px;"></span> 成功 (${successCount})</div>`
+              : ''
+          }
+          ${
+            failureCount > 0
+              ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #f44336; margin-right: 5px;"></span> 失敗 (${failureCount})</div>`
+              : ''
+          }
+          ${
+            cancelledCount > 0
+              ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #ff9800; margin-right: 5px;"></span> キャンセル (${cancelledCount})</div>`
+              : ''
+          }
+          ${
+            inProgressCount > 0
+              ? `<div><span style="display: inline-block; width: 12px; height: 12px; background-color: #2196f3; margin-right: 5px;"></span> 進行中 (${inProgressCount})</div>`
+              : ''
+          }
         </div>
       </div>
     `;
@@ -636,7 +673,9 @@ function generateHTMLReport(data) {
           <div class="workflow-details">
             <div class="workflow-detail-item">
               <strong>実行ID:</strong> ${run.run_id}
-              <a href="https://github.com/${OWNER}/${REPO}/actions/runs/${run.run_id}" target="_blank" class="workflow-link">GitHubで表示</a>
+              <a href="https://github.com/${OWNER}/${REPO}/actions/runs/${
+                run.run_id
+              }" target="_blank" class="workflow-link">GitHubで表示</a>
             </div>
             <div class="workflow-detail-item">
               <strong>イベント:</strong> ${run.event}

@@ -1,19 +1,23 @@
 #!/bin/sh
 # エラーコードを明示的に管理
 
-echo "🔍 コミット前の基本チェック実行中..."
+echo "🔍 コミット前のチェック実行中..."
 
 # プロジェクトのルートディレクトリに移動
-cd "$(git rev-parse --show-toplevel)"
+cd "$(git rev-parse --show-toplevel)" || exit 1
 
 # 開始時間を記録
 start_time=$(date +%s)
 
-# 変更されたファイルを取得
-all_changed_files=$(git diff --cached --name-only --diff-filter=ACM)
-js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' | grep -v '^scripts/' || true)
-css_json_md_files=$(echo "$all_changed_files" | grep -E '\.(json|md|mdx|css)$' || true)
-rules_files=$(echo "$all_changed_files" | grep -E '^rules/.+\.md$' || true)
+# ステージングされたファイルとステージングされていない変更ファイルを取得
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+unstaged_files=$(git diff --name-only)
+
+# すべての変更ファイルを取得
+all_changed_files="$staged_files $unstaged_files"
+js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' | grep -v '^scripts/' | sort -u || true)
+css_json_md_files=$(echo "$all_changed_files" | grep -E '\.(json|md|mdx|css)$' | sort -u || true)
+rules_files=$(echo "$all_changed_files" | grep -E '^rules/.+\.md$' | sort -u || true)
 
 # 変更がない場合は早期終了
 if [ -z "$all_changed_files" ]; then
@@ -27,12 +31,9 @@ skip_tests=${SKIP_TESTS:-""}
 # エラーが発生したかどうかを追跡
 has_errors=0
 
-# 1. 手動によるステージングファイルのlintとフォーマット
-echo "🧹 ESLint/Prettier実行中..."
-
-# JS/TSファイルのlintとフォーマット
+# 1. JS/TSファイルのlintとフォーマット
 if [ ! -z "$js_ts_files" ]; then
-  echo "JavaScript/TypeScriptファイルのチェック中..."
+  echo "🧹 ESLint/Prettier実行中..."
   # ESLint実行
   pnpm eslint --fix $js_ts_files
   lint_result=$?
@@ -52,7 +53,7 @@ if [ ! -z "$js_ts_files" ]; then
   fi
 fi
 
-# CSS/JSON/MD/MDXファイルのフォーマット
+# 2. CSS/JSON/MD/MDXファイルのフォーマット
 if [ ! -z "$css_json_md_files" ]; then
   echo "CSS/JSON/Markdownファイルのフォーマット中..."
   pnpm prettier --write $css_json_md_files
@@ -76,15 +77,20 @@ if [ $has_errors -eq 0 ] && echo "$js_ts_files" | grep -q "\.tsx\?$"; then
   fi
 else
   echo "📝 TSファイルの変更なし。型チェックをスキップします。"
-  type_check_result=0
 fi
 
-# 4. JS/TSファイルの変更がある場合、関連テスト実行
-if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ] && [ ! -z "$RUN_TESTS" ]; then
+# 4. セキュリティチェック結果
+echo "🔒 セキュリティチェック実行中..."
+# セキュリティチェックはエラーを無視する
+pnpm audit --production --audit-level=critical || true
+echo "ℹ️ セキュリティの問題がある場合は将来的に対応を検討してください。"
+
+# 5. JS/TSファイルの変更がある場合、関連テスト実行
+if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ] && [ -z "$skip_tests" ]; then
   echo "🧪 変更関連テスト実行中..."
 
-  # テスト実行（明示的に有効化された場合のみ）
-  NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest run --dir tests/unit --passWithNoTests --bail=false
+  # 関連テスト実行（効率的な方法）
+  NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest related --run $js_ts_files --passWithNoTests
   test_result=$?
 
   if [ $test_result -ne 0 ]; then
@@ -94,16 +100,9 @@ if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ] && [ ! -z "$RUN_TESTS" ]; th
     echo "✅ テストが成功しました。"
   fi
 else
-  # テストスキップ（デフォルト）
-  echo "📝 テストはスキップします。テストを実行するには RUN_TESTS=1 を設定してください。"
+  echo "📝 テストはスキップします。テストを必ず実行するには SKIP_TESTS=0 を設定してください。"
   test_result=0
 fi
-
-# 5. セキュリティチェック結果は警告として表示
-echo "🔒 セキュリティチェック実行中..."
-# セキュリティチェックはエラーを無視する
-pnpm audit --production --audit-level=critical || true
-echo "ℹ️ セキュリティの問題がある場合は将来的に対応を検討してください。"
 
 # 6. rulesディレクトリの変更ファイルのみ基本検証
 if [ $has_errors -eq 0 ] && [ ! -z "$rules_files" ]; then
@@ -121,17 +120,11 @@ if [ $has_errors -eq 0 ] && [ ! -z "$rules_files" ]; then
       continue
     fi
 
-    # 2. 最低限の構造チェック - 見出しのチェックを無効化
-    # if ! grep -q "^# " "$file"; then
-    #   echo "    ⚠️ $file に適切な見出し(#)がありません"
-    #   rules_errors=1
-    # fi
-
-    # 3. 文法エラーチェック（不完全な見出しや箇条書き）- このチェックを無効化
-    # if grep -q "^#\s*$" "$file" || grep -q "^-\s*$" "$file"; then
-    #   echo "    ⚠️ $file に不完全な見出しまたは箇条書きがあります"
-    #   rules_errors=1
-    # fi
+    # 2. 最低限の構造チェック
+    if ! grep -q "^# " "$file"; then
+      echo "    ⚠️ $file に適切な見出し(#)がありません"
+      rules_errors=1
+    fi
   done
 
   if [ $rules_errors -ne 0 ]; then
@@ -142,6 +135,12 @@ if [ $has_errors -eq 0 ] && [ ! -z "$rules_files" ]; then
   fi
 else
   echo "📝 rules変更なし。ドキュメントチェックをスキップします。"
+fi
+
+# 変更があった場合、変更を自動的にステージングする
+if [ -n "$(git diff --name-only)" ]; then
+  echo "📝 フォーマッターによる変更を自動的にステージングします..."
+  git add -u
 fi
 
 # 実行終了時間と結果表示
