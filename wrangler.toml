@@ -5,53 +5,7 @@ compatibility_flags = [ "nodejs_compat" ]
 # workers_devを削除
 # pages_build_output_dirの代わりにpages_build_output_dirを使用
 pages_build_output_dir = "out"  # Cloudflare Pagesのビルド出力ディレクトリ
-# ビルドコマンド
-build.command = "pnpm run build"
-
-# ローカル開発用の共通変数
-[vars]
-APP_NAME = "Automationa Tools Local"
-ENVIRONMENT = "local"
-DATABASE = "local"
-NODE_ENV = "development"
-
-# ローカル開発用のD1データベース設定
-[[d1_databases]]
-binding = "DB"
-database_name = "automationa-tools-local-db"
-database_id = "${D1_DATABASE_ID}" # 環境変数から読み込み
-migrations_dir = "migrations"
-
-# ローカル開発用のKVネームスペース設定
-[[kv_namespaces]]
-binding = "CACHE_DEV"  # ローカル環境用キャッシュバインディング
-id = "${KV_CACHE_ID}"
-
-[[kv_namespaces]]
-binding = "SESSION_STORE_DEV"  # ローカル環境用セッションストアバインディング
-id = "${KV_SESSION_STORE_ID}"
-
-# ローカル開発用のR2バケット設定
-[[r2_buckets]]
-binding = "R2_ASSETS"  # ローカル環境アセットストレージ
-bucket_name = "${R2_ASSETS_BUCKET_NAME}"
-
-[[r2_buckets]]
-binding = "R2_BACKUPS"  # ローカル環境バックアップストレージ
-bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
-
-# ===========================================================
-# ローカル環境設定（env.local）
-# ===========================================================
-[env.local]
-env_path = ".env.local"  # ローカル開発用の環境変数ファイル
-
-# 環境変数設定（ローカル）
-[env.local.vars]
-APP_NAME = "Automationa Tools Local"
-ENVIRONMENT = "local"
-DATABASE = "local"
-NODE_ENV = "development"
+# ビルドコマンドを削除（Pagesプロジェクトでは未サポート）
 
 # ===========================================================
 # 本番環境（production）設定
@@ -131,13 +85,9 @@ bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
 
 # .envファイルは、各環境に対応する env_path で自動的に読み込まれます：
 # - production: .env.production (pnpm exec wrangler pages deploy --env=production)
-# - preview: .env.preview (pnpm exec wrangler pages dev --env=preview)
-# - local: .env.local (pnpm exec wrangler pages dev --env=local)
-
-# 注意: ローカル環境はCloudflare Pagesデプロイには使用されません
-# ローカル開発時のみ使用されます
+# - preview: .env.preview (pnpm exec wrangler pages deploy --env=preview)
 
 # 注意：
-# - ローカル開発: `pnpm exec wrangler pages dev out` （出力ディレクトリを指定）
+# - ローカル開発: `pnpm exec wrangler dev`（ローカル開発用）
 # - プレビューデプロイ: `pnpm exec wrangler pages deploy --env=preview`
 # - 本番デプロイ: `pnpm exec wrangler pages deploy --env=production`

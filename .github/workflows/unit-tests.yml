@@ -26,6 +26,12 @@ concurrency:
   group: unit-tests-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 必要な権限の設定
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   # 単体テスト実行（再利用可能ワークフローを使用）
   # ソースコードの基本的な機能単位をテスト
@@ -39,6 +45,10 @@ jobs:
   # - report_to_pr: PRにテスト結果をコメントするかどうか
   unit-tests:
     name: 単体テスト
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     uses: ./.github/workflows/reusable-test-execution.yml
     with:
       test_type: 'unit'
@@ -65,6 +75,10 @@ jobs:
   # これは開発段階のため、すべてのコンポーネントテストが完成していない可能性を考慮しています
   component-tests:
     name: コンポーネントテスト
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     uses: ./.github/workflows/reusable-test-execution.yml
     with:
       test_type: 'component'
@@ -91,6 +105,10 @@ jobs:
     needs: [unit-tests, component-tests]
     if: always() # テストが失敗しても必ず実行
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: テスト結果サマリー
         run: |
@@ -102,6 +120,26 @@ jobs:
           else
             echo "単体テストカバレッジ: 計測なし"
           fi
+
+      # PRコメントを追加
+      - name: PRコメント追加
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 単体テスト実行結果
+
+              - 単体テスト: ${{ needs.unit-tests.outputs.test_success == 'true' && '✅' || '❌' }}
+              - コンポーネントテスト: ${{ needs.component-tests.outputs.test_success == 'true' && '✅' || '❌' }}
+              - 単体テストカバレッジ: ${{ needs.unit-tests.outputs.coverage_value }}%
+
+              詳細はワークフロー実行結果を確認してください。`
+            });
 
 # 使用している環境変数:
 # - CF_ACCOUNT_ID/CLOUDFLARE_ACCOUNT_ID: Cloudflareアカウント識別子

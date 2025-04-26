@@ -40,10 +40,17 @@ on:
         default: false
         type: boolean
 
+# 権限の継承を明示的に指定
+permissions:
+  contents: read  # アーティファクトの読み取り
+  issues: write   # PRコメント用
+  pull-requests: write  # PRコメント用
+
 jobs:
   process-results:
     name: 'テスト結果処理'
     runs-on: ubuntu-latest
+    # 呼び出し元の権限を継承
     permissions:
       contents: read
       issues: write
