@@ -5,8 +5,7 @@ compatibility_flags = [ "nodejs_compat" ]
 # workers_devを削除
 # pages_build_output_dirの代わりにpages_build_output_dirを使用
 pages_build_output_dir = "out"  # Cloudflare Pagesのビルド出力ディレクトリ
-# ビルドコマンド
-build.command = "pnpm run build"
+# ビルドコマンドを削除（Pagesプロジェクトでは未サポート）
 
 # ローカル開発用の共通変数
 [vars]
@@ -42,6 +41,7 @@ bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
 
 # ===========================================================
 # ローカル環境設定（env.local）
+# 注意: この環境はCloudflare Pagesでは使用されませんが、ローカル開発には必要です
 # ===========================================================
 [env.local]
 env_path = ".env.local"  # ローカル開発用の環境変数ファイル
@@ -131,7 +131,7 @@ bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
 
 # .envファイルは、各環境に対応する env_path で自動的に読み込まれます：
 # - production: .env.production (pnpm exec wrangler pages deploy --env=production)
-# - preview: .env.preview (pnpm exec wrangler pages dev --env=preview)
+# - preview: .env.preview (pnpm exec wrangler pages deploy --env=preview)
 # - local: .env.local (pnpm exec wrangler pages dev --env=local)
 
 # 注意: ローカル環境はCloudflare Pagesデプロイには使用されません
