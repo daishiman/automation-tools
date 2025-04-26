@@ -3,6 +3,13 @@ name: ワークフロー実行オーケストレーター
 # 開発ワークフローの実行を制御するメインオーケストレーター
 # PR時に確実に必要なテストを実行するためのワークフロー
 on:
+  # pushイベントでもワークフローを実行
+  push:
+    branches: [develop, main, feature/**]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
   pull_request:
     branches: [develop, main]
     paths-ignore:
@@ -10,6 +17,11 @@ on:
       - 'docs/**'
       - 'rules/**'
   workflow_dispatch: # 手動実行も可能
+    inputs:
+      target_branch:
+        description: 'テスト実行対象のブランチ名'
+        required: false
+        type: string
 
 # 実行の最適化（同時実行を防止）
 concurrency:
@@ -30,6 +42,17 @@ jobs:
     steps:
       - name: リポジトリのチェックアウト
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.target_branch || github.ref }}
+
+      # 現在のブランチ名とイベントタイプを表示（デバッグ用）
+      - name: 実行環境情報の表示
+        run: |
+          echo "実行イベント: ${{ github.event_name }}"
+          echo "ブランチ名: ${{ github.ref_name }}"
+          echo "ターゲットブランチ: ${{ github.base_ref || 'なし' }}"
+          echo "コミットSHA: ${{ github.sha }}"
+          echo "指定されたブランチ: ${{ github.event.inputs.target_branch || 'なし' }}"
 
       - name: ユニットテストワークフローの実行
         uses: actions/github-script@v6
@@ -40,7 +63,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'unit-tests.yml',
-              ref: '${{ github.head_ref || github.ref_name }}'
+              ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
             });
             console.log('ユニットテストワークフローを実行しました');
 
@@ -53,7 +76,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'integration-tests.yml',
-              ref: '${{ github.head_ref || github.ref_name }}'
+              ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
             });
             console.log('統合テストワークフローを実行しました');
 
@@ -85,9 +108,27 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'e2e-tests.yml',
-              ref: '${{ github.head_ref || github.ref_name }}'
+              ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
             });
             console.log('E2Eテストワークフローを実行しました');
+
+      # プレビューデプロイの実行（feature/**ブランチの場合）
+      - name: プレビューデプロイの実行
+        if: startsWith(github.ref_name, 'feature/') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'develop-ci.yml',
+              ref: 'develop',
+              inputs: {
+                preview_branch: '${{ github.ref_name }}'
+              }
+            });
+            console.log('プレビューデプロイワークフローを実行しました');
 
       - name: テスト実行状況の通知
         uses: actions/github-script@v6
@@ -108,6 +149,7 @@ jobs:
               - ✅ ユニットテスト（自動実行）
               - ✅ 統合テスト（自動実行）
               ${checkE2eResult == 'true' ? '- ✅ E2Eテスト（自動実行）' : '- ⏸️ E2Eテスト（"needs-e2e-tests"ラベルを追加すると実行されます）'}
+              ${startsWith(github.ref_name, 'feature/') ? '- ✅ プレビューデプロイ（自動実行）' : ''}
 
               各テスト結果は個別のワークフローコメントで報告されます。`
             });
