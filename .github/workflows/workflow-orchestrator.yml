@@ -16,6 +16,12 @@ concurrency:
   group: orchestrator-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# workflow_dispatch APIにアクセスするための権限設定
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
 jobs:
   # ワークフローの実行を制御
   trigger-workflows:
