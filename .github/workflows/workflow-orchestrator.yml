@@ -79,6 +79,10 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             try {
+              // 他のワークフローと重複しないよう少し待機
+              console.log('統合テストワークフロー実行前に少し待機します...');
+              await new Promise(resolve => setTimeout(resolve, 5000));
+
               await github.rest.actions.createWorkflowDispatch({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
