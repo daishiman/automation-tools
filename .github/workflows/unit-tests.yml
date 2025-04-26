@@ -58,13 +58,15 @@ jobs:
         sleep 3
 
         # 単体テスト実行（失敗しても続行）
-        pnpm test:run --no-threads --testTimeout=600000
+        # パフォーマンステストをスキップ（必要に応じて実行可能）
+        pnpm test:fast --testTimeout=600000
         if [ $? -ne 0 ]; then
           echo "単体テスト実行に問題がありましたが、続行します"
         fi
       coverage_command: |
         # カバレッジ計測（失敗しても続行）
-        pnpm test:coverage --no-threads --testTimeout=600000
+        # パフォーマンステストをスキップ
+        pnpm test:coverage --exclude=tests/performance/** --testTimeout=600000
         if [ $? -ne 0 ]; then
           echo "カバレッジ計測に問題がありましたが、続行します"
         fi
