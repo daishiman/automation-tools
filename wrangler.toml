@@ -87,26 +87,6 @@ bucket_name = "${R2_ASSETS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsか�
 binding = "R2_BACKUP"  # 開発環境バックアップストレージ
 bucket_name = "${R2_BACKUPS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
 
-# ===========================================================
-# ローカル開発環境設定
-# ===========================================================
-[env.development]
-env_path = ".env.development" # ローカル開発時のみ使用
-
-# 環境変数設定（ローカル開発）
-[env.development.vars]
-APP_NAME = "automationa-tools-local"
-ENVIRONMENT = "development"
-DATABASE = "development"
-NODE_ENV = "development"
-
-# D1データベース設定（ローカル開発）
-[[env.development.d1_databases]]
-binding = "DB"  # バインディング名
-database_name = "automationa-tools-dev-db"  # ローカル開発データベース名
-database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"  # .env.developmentから上書き
-migrations_dir = "migrations"
-
 # .envファイルは、各環境に対応する env_path で自動的に読み込まれます：
 # - production: .env.production (pnpm exec wrangler pages deploy --env=production)
 # - preview: .env.preview (pnpm exec wrangler pages deploy --env=preview)
@@ -117,6 +97,6 @@ migrations_dir = "migrations"
 # - 本番デプロイ: `pnpm exec wrangler pages deploy --env=production`
 
 # 実行ガイド：
-# - ローカル開発: `pnpm exec wrangler dev --env=development`
+# - ローカル開発: `pnpm exec wrangler dev --env=preview`
 # - プレビュー環境へのデプロイ: `pnpm exec wrangler pages deploy --env=preview`
 # - 本番環境へのデプロイ: `pnpm exec wrangler pages deploy --env=production`
