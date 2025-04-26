@@ -149,7 +149,7 @@ jobs:
               - ✅ ユニットテスト（自動実行）
               - ✅ 統合テスト（自動実行）
               ${checkE2eResult == 'true' ? '- ✅ E2Eテスト（自動実行）' : '- ⏸️ E2Eテスト（"needs-e2e-tests"ラベルを追加すると実行されます）'}
-              ${startsWith(github.ref_name, 'feature/') ? '- ✅ プレビューデプロイ（自動実行）' : ''}
+              ${github.ref_name && github.ref_name.indexOf('feature/') === 0 ? '- ✅ プレビューデプロイ（自動実行）' : ''}
 
               各テスト結果は個別のワークフローコメントで報告されます。`
             });
