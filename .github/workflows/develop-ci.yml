@@ -117,7 +117,7 @@ jobs:
       # ESLintチェック
       - name: ESLintの実行
         id: eslint
-        run: pnpm lint:ci || echo "ESLintでエラーが見つかりました（開発段階のため続行します）"
+        run: pnpm lint:src || echo "ESLintでエラーが見つかりました（開発段階のため続行します）"
         continue-on-error: true
 
       # Prettierチェック
