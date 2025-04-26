@@ -271,9 +271,11 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: pages deploy out --project-name=automationa-tools --branch=main
+          command: pages deploy out --project-name=automationa-tools --branch=main --commit-dirty=true
         env:
           CF_PAGES_DEBUG: true
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
       - name: デプロイURLの出力
         if: success()

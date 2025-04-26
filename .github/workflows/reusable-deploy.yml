@@ -219,9 +219,11 @@ jobs:
         with:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
-          command: pages deploy out --project-name=automationa-tools --branch=${{ inputs.branch_name }}
+          command: pages deploy out --project-name=automationa-tools --branch=${{ inputs.branch_name }} --commit-dirty=true
         env:
           CF_PAGES_DEBUG: true # デバッグログを有効化
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
 
       # デプロイエラーのハンドリング
       - name: デプロイエラーのチェック
@@ -236,13 +238,30 @@ jobs:
             cat wrangler-deploy.log
           fi
 
-          # Cloudflare API トークンの権限確認
+          # Cloudflare APIトークン詳細チェック
           echo "API トークンの権限を確認してください:"
           echo "- Account.Cloudflare Pages: Edit"
+          echo "- Account.Worker Scripts: Edit"
+          echo "- Account.Workers R2 Storage: Edit"
+          echo "- Account.Workers KV Storage: Edit"
+          echo "- Account.D1: Edit"
           echo "- API Shield: Edit"
+          echo "- Zone.Cloudflare Pages: Edit"
+
+          # トークンとアカウントIDの確認
+          echo "シークレット設定を確認してください:"
+          echo "CF_API_TOKEN と CF_ACCOUNT_ID がGitHub Secretsに正しく設定されているか確認"
 
           # プロジェクト名が正しいか確認
-          echo "プロジェクト名が正しいことを確認してください: automationa-tools"
+          echo "プロジェクト名: automationa-tools"
+          echo "指定したデプロイ環境: ${{ inputs.environment }}"
+          echo "指定したブランチ名: ${{ inputs.branch_name }}"
+
+          # プロジェクト一覧の取得を試行
+          echo "Cloudflareプロジェクト一覧の取得を試行中..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler pages project list || echo "プロジェクト一覧の取得に失敗しました"
 
           exit 1
 
