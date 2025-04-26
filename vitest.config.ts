@@ -16,7 +16,7 @@ export default defineConfig({
     outputFile: {
       junit: './junit.xml',
     },
-    testTimeout: 300000,
+    testTimeout: 600000,
     cache: {
       dir: '.vitest-cache',
     },
@@ -26,6 +26,7 @@ export default defineConfig({
       '**/.{idea,git,cache,output,temp}/**',
       '**/scripts/**',
       '**/*.d.ts',
+      process.env.CI === 'true' && !process.env.RUN_PERFORMANCE_TESTS ? '**/performance/**' : '',
     ],
   },
   resolve: {

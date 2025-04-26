@@ -25,8 +25,8 @@ on:
 
 # 実行の最適化（同時実行を防止）
 concurrency:
-  group: orchestrator-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: orchestrator-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: false
 
 # workflow_dispatch APIにアクセスするための権限設定を修正
 permissions:
@@ -95,6 +95,10 @@ jobs:
                 ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
               });
               console.log('ユニットテストワークフローを実行しました');
+
+              // ワークフロー間の遅延を追加（10秒）
+              console.log('ワークフロー実行間に10秒の遅延を追加します...');
+              await new Promise(resolve => setTimeout(resolve, 10000));
             } catch (error) {
               console.error('ユニットテストワークフロー実行エラー:', error.message);
             }
@@ -107,7 +111,7 @@ jobs:
             try {
               // 他のワークフローと重複しないよう少し待機
               console.log('統合テストワークフロー実行前に少し待機します...');
-              await new Promise(resolve => setTimeout(resolve, 5000));
+              await new Promise(resolve => setTimeout(resolve, 10000));
 
               await github.rest.actions.createWorkflowDispatch({
                 owner: context.repo.owner,
@@ -116,6 +120,10 @@ jobs:
                 ref: '${{ github.event.inputs.target_branch || github.head_ref || github.ref_name }}'
               });
               console.log('統合テストワークフローを実行しました');
+
+              // ワークフロー間の遅延を追加（10秒）
+              console.log('ワークフロー実行間に10秒の遅延を追加します...');
+              await new Promise(resolve => setTimeout(resolve, 10000));
             } catch (error) {
               console.error('統合テストワークフロー実行エラー:', error.message);
             }

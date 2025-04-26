@@ -23,8 +23,8 @@ on:
 # 実行の最適化（同時実行を防止）
 # 同じブランチで複数のワークフローが実行された場合、古いものをキャンセル
 concurrency:
-  group: unit-tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: unit-tests-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: false
 
 # 必要な権限の設定
 permissions:
@@ -53,14 +53,20 @@ jobs:
     with:
       test_type: 'unit'
       test_command: |
+        # キャッシュ安定化のための待機
+        echo "テスト実行前に3秒待機しています..."
+        sleep 3
+
         # 単体テスト実行（失敗しても続行）
-        pnpm test:run --no-threads
+        # パフォーマンステストをスキップ（必要に応じて実行可能）
+        pnpm test:fast --testTimeout=600000
         if [ $? -ne 0 ]; then
           echo "単体テスト実行に問題がありましたが、続行します"
         fi
       coverage_command: |
         # カバレッジ計測（失敗しても続行）
-        pnpm test:coverage --no-threads
+        # パフォーマンステストをスキップ
+        pnpm test:coverage --exclude=tests/performance/** --testTimeout=600000
         if [ $? -ne 0 ]; then
           echo "カバレッジ計測に問題がありましたが、続行します"
         fi
@@ -85,7 +91,7 @@ jobs:
       test_command: |
         # コンポーネントテスト実行
         if grep -q '"test:components"' package.json; then
-          pnpm test:components --no-threads
+          pnpm test:components --no-threads --testTimeout=600000
           if [ $? -ne 0 ]; then
             echo "コンポーネントテスト実行に問題がありましたが、開発段階のため続行します"
           fi

@@ -251,7 +251,7 @@ jobs:
 
       # デプロイ後の検証（環境に応じて厳格さを変更）
       - name: 基本スモークテスト
-        continue-on-error: true  # このステップでの失敗はワークフロー全体を失敗させない
+        continue-on-error: true # このステップでの失敗はワークフロー全体を失敗させない
         run: |
           # 基本的な疎通確認 (タイムアウト対策として5秒のタイムアウトを設定)
           curl -sSf --max-time 5 "${{ inputs.app_url }}" > /dev/null || echo "警告: 初回アクセスでタイムアウトしました。Cloudflare Pagesの初期化を待機中..."

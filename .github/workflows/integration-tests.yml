@@ -24,8 +24,8 @@ on:
 # 実行の最適化（同時実行を防止）
 # 同じブランチで複数のワークフローが実行された場合、古いものをキャンセル
 concurrency:
-  group: integration-tests-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: integration-tests-${{ github.workflow }}-${{ github.ref_name }}
+  cancel-in-progress: false
 
 # 各統合テストジョブの間隔を空けるための待機時間設定
 env:
@@ -133,8 +133,8 @@ jobs:
       test_type: 'db-integration'
       test_command: |
         # DB統合テスト前に待機（ジョブの同時実行防止）
-        echo "データベース統合テスト実行前に $DB_TEST_DELAY 秒待機します..."
-        sleep $DB_TEST_DELAY
+        echo "データベース統合テスト実行前に ${DB_TEST_DELAY} 秒待機します..."
+        sleep ${DB_TEST_DELAY}
 
         # テスト用のSQLiteデータベースをセットアップ（セットアップスクリプトの存在確認）
         if grep -q '"db:test:setup"' package.json; then

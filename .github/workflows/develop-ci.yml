@@ -6,18 +6,18 @@ on:
     branches:
       - develop
     paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "LICENSE"
-      - ".gitignore"
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   pull_request:
     branches:
       - develop
     paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - "LICENSE"
-      - ".gitignore"
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
   workflow_dispatch:
     inputs:
       preview_branch:
