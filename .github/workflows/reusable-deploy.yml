@@ -262,39 +262,114 @@ jobs:
           echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
           echo "環境名: ${{ inputs.environment }}"
           echo "D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}"
-
-          # wrangler.tomlの環境変数展開用に一時的な.envファイルを作成
-          cat > .env.migration << EOF
-          D1_DATABASE_ID=${{ secrets.D1_DATABASE_ID }}
-          KV_CACHE_ID=${{ secrets.KV_CACHE_ID }}
-          KV_SESSION_STORE_ID=${{ secrets.KV_SESSION_STORE_ID }}
-          R2_ASSETS_BUCKET_NAME=${{ vars.R2_ASSETS_BUCKET_NAME }}
-          R2_BACKUPS_BUCKET_NAME=${{ vars.R2_BACKUPS_BUCKET_NAME }}
-          EOF
-
-          # 環境変数ファイルの内容確認
-          echo "環境変数ファイルの内容:"
-          cat .env.migration
+          echo "CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}"
+          echo "D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }} (非表示)"
 
           if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
             # ハードコードされたデータベース名を使用
             DB_NAME="automationa-tools-dev-db"
+            ENV_NAME="preview"
+
+            # 一時的なwrangler.tomlファイルを作成
+            cat > wrangler.temp.toml << EOF
+            name = "automationa-tools"
+            compatibility_date = "2023-06-28"
+            compatibility_flags = [ "nodejs_compat" ]
+            pages_build_output_dir = "out"
+
+            # 開発環境設定
+            [env.preview]
+
+            [[env.preview.d1_databases]]
+            binding = "DB"
+            database_name = "automationa-tools-dev-db"
+            database_id = "${{ secrets.D1_DATABASE_ID }}"
+            migrations_dir = "migrations"
+
+            [[env.preview.kv_namespaces]]
+            binding = "CACHE_DEV"
+            id = "${{ secrets.KV_CACHE_ID }}"
+
+            [[env.preview.kv_namespaces]]
+            binding = "SESSION_STORE_DEV"
+            id = "${{ secrets.KV_SESSION_STORE_ID }}"
+
+            [[env.preview.r2_buckets]]
+            binding = "R2_STORAGE"
+            bucket_name = "${{ vars.R2_ASSETS_BUCKET_NAME }}"
+
+            [[env.preview.r2_buckets]]
+            binding = "R2_BACKUP"
+            bucket_name = "${{ vars.R2_BACKUPS_BUCKET_NAME }}"
+            EOF
+
+            # 一時設定ファイルの内容確認（秘密情報を隠して）
+            echo "一時wrangler.tomlファイルの構造:"
+            cat wrangler.temp.toml | sed 's/database_id = ".*"/database_id = "***"/g' | sed 's/id = ".*"/id = "***"/g'
+
             echo "データベース名: ${DB_NAME}"
 
-            # 環境変数ファイルを使用してマイグレーション実行
-            WRANGLER_CONFIG_ENV_PATH=.env.migration CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} pnpm exec wrangler d1 migrations apply "${DB_NAME}" --env=preview
+            # マイグレーション実行
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} pnpm exec wrangler d1 migrations apply "${DB_NAME}" --config=wrangler.temp.toml --env=preview
+
+            # 一時ファイルの削除
+            rm wrangler.temp.toml
+
           elif [[ "${{ inputs.environment }}" == "production" ]]; then
             # ハードコードされたデータベース名を使用
             DB_NAME="automationa-tools-db"
+            ENV_NAME="production"
+
+            # 一時的なwrangler.tomlファイルを作成
+            cat > wrangler.temp.toml << EOF
+            name = "automationa-tools"
+            compatibility_date = "2023-06-28"
+            compatibility_flags = [ "nodejs_compat" ]
+            pages_build_output_dir = "out"
+
+            # 本番環境設定
+            [env.production]
+
+            [[env.production.d1_databases]]
+            binding = "DB"
+            database_name = "automationa-tools-db"
+            database_id = "${{ secrets.D1_DATABASE_ID }}"
+            migrations_dir = "migrations"
+
+            [[env.production.kv_namespaces]]
+            binding = "CACHE_PROD"
+            id = "${{ secrets.KV_CACHE_ID }}"
+
+            [[env.production.kv_namespaces]]
+            binding = "SESSION_STORE_PROD"
+            id = "${{ secrets.KV_SESSION_STORE_ID }}"
+
+            [[env.production.r2_buckets]]
+            binding = "R2_STORAGE"
+            bucket_name = "${{ vars.R2_ASSETS_BUCKET_NAME }}"
+
+            [[env.production.r2_buckets]]
+            binding = "R2_BACKUP"
+            bucket_name = "${{ vars.R2_BACKUPS_BUCKET_NAME }}"
+            EOF
+
+            # 一時設定ファイルの内容確認（秘密情報を隠して）
+            echo "一時wrangler.tomlファイルの構造:"
+            cat wrangler.temp.toml | sed 's/database_id = ".*"/database_id = "***"/g' | sed 's/id = ".*"/id = "***"/g'
+
             echo "データベース名: ${DB_NAME}"
 
-            # 環境変数ファイルを使用してマイグレーション実行
-            WRANGLER_CONFIG_ENV_PATH=.env.migration CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} pnpm exec wrangler d1 migrations apply "${DB_NAME}" --env=production
+            # マイグレーション実行
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} pnpm exec wrangler d1 migrations apply "${DB_NAME}" --config=wrangler.temp.toml --env=production
+
+            # 一時ファイルの削除
+            rm wrangler.temp.toml
           fi
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
 
