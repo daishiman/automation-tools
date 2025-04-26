@@ -114,20 +114,20 @@ jobs:
 
       # プレビューデプロイの実行（feature/**ブランチの場合）
       - name: プレビューデプロイの実行
-        if: startsWith(github.ref_name, 'feature/') && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+        if: startsWith(github.ref_name, 'feature/') && contains(fromJSON('["push", "workflow_dispatch"]'), github.event_name)
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            console.log('プレビューデプロイワークフローを実行します: ${{ github.ref_name }}');
+
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
               workflow_id: 'develop-ci.yml',
-              ref: 'develop',
-              inputs: {
-                preview_branch: '${{ github.ref_name }}'
-              }
+              ref: 'develop'
             });
+
             console.log('プレビューデプロイワークフローを実行しました');
 
       - name: テスト実行状況の通知
@@ -149,7 +149,7 @@ jobs:
               - ✅ ユニットテスト（自動実行）
               - ✅ 統合テスト（自動実行）
               ${checkE2eResult == 'true' ? '- ✅ E2Eテスト（自動実行）' : '- ⏸️ E2Eテスト（"needs-e2e-tests"ラベルを追加すると実行されます）'}
-              ${startsWith(github.ref_name, 'feature/') ? '- ✅ プレビューデプロイ（自動実行）' : ''}
+              ${github.ref_name.startsWith('feature/') ? '- ✅ プレビューデプロイ（自動実行）' : ''}
 
               各テスト結果は個別のワークフローコメントで報告されます。`
             });
