@@ -1,60 +1,52 @@
-name: 開発環境 CI/CD
+name: 開発環境CI/CD
 
-# 開発環境向けワークフロー
-# 対象: developブランチへのプッシュ・PR、または手動実行
+# develop ブランチとプルリクエストのCI/CD
 on:
   push:
-    branches: [develop]
+    branches:
+      - develop
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'rules/**'
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
   pull_request:
-    branches: [develop]
+    branches:
+      - develop
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'rules/**'
-  workflow_dispatch: # 手動実行も可能
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+  workflow_dispatch:
     inputs:
       preview_branch:
-        description: 'プレビューデプロイするブランチ名（feature/**など）'
+        description: 'プレビューデプロイを行うブランチ名（feature/xxx など）'
         required: false
         type: string
 
-# 実行の最適化（同時実行を防止）
+# トップレベルの権限設定
+permissions:
+  contents: read # ソースコードへの読み取り権限
+  pull-requests: write # PRにコメントする権限
+  issues: read # issue情報の読み取り
+  deployments: write # デプロイ作成権限
+
+# 同時実行制御（同じブランチで複数の実行がある場合、古いものをキャンセル）
 concurrency:
-  group: develop-${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# 権限設定を追加
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
-  actions: write
-
 jobs:
-  # ステップ1: 環境セットアップ（再利用可能ワークフローから呼び出し）
+  # 共通セットアップジョブ（依存関係インストールなど）
   setup:
     name: 環境セットアップ
-    uses: ./.github/workflows/reusable-setup.yml
-    with:
-      node_version: '20'
-      pnpm_version: '8.10.0'
-      install_dependencies: true
-
-  # ステップ2: テストと検証
-  # プッシュ、PR、手動実行時に必ず実行する
-  lint-and-test:
-    name: 型チェック・リント・テスト
-    needs: [setup]
     runs-on: ubuntu-latest
-    continue-on-error: true # エラーが発生しても次のステップへ進むように変更
     steps:
       - name: ソースコードのチェックアウト
         uses: actions/checkout@v4
         with:
+          # workflow_dispatchでpreview_branchが指定されている場合は、そのブランチを使用
           ref: ${{ github.event.inputs.preview_branch || github.ref }}
 
       - name: PNPMのセットアップ
@@ -68,117 +60,225 @@ jobs:
           node-version: 20
           cache: 'pnpm'
 
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      - name: 依存関係のインストール
+        id: install
+        run: pnpm install
+
+      # ビルドキャッシュの利用設定
+      - name: Next.jsキャッシュのセットアップ
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+
+  # コードスタイルチェックとリンター実行
+  lint:
+    name: コードスタイルチェック
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          # workflow_dispatchでpreview_branchが指定されている場合は、そのブランチを使用
+          ref: ${{ github.event.inputs.preview_branch || github.ref }}
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
       - name: 依存関係のインストール
         run: pnpm install
 
-      - name: リント実行
-        id: lint
+      # ESLintチェック
+      - name: ESLintの実行
+        id: eslint
+        run: pnpm lint:ci
         continue-on-error: true
-        run: pnpm lint || echo "::warning::リントでエラーが発生しましたが、開発段階のため続行します"
 
-      - name: 型チェック
-        id: type-check
+      # Prettierチェック
+      - name: Prettierの実行
+        id: prettier
+        run: pnpm format:check
         continue-on-error: true
-        run: pnpm type-check || echo "::warning::型チェックでエラーが発生しましたが、開発段階のため続行します"
 
-      - name: ユニットテスト実行
-        id: test
+      # 型チェック
+      - name: 型チェックの実行
+        id: typecheck
+        run: pnpm typecheck
         continue-on-error: true
-        run: pnpm test || echo "::warning::テスト実行でエラーが発生しましたが、開発段階のため続行します"
 
-      - name: テストカバレッジチェック
-        id: coverage
+      # チェック結果のサマリー
+      - name: チェック結果の確認
+        if: always()
+        run: |
+          echo "ESLint: ${{ steps.eslint.outcome }}"
+          echo "Prettier: ${{ steps.prettier.outcome }}"
+          echo "TypeCheck: ${{ steps.typecheck.outcome }}"
+
+          if [[ "${{ steps.eslint.outcome }}" != "success" || "${{ steps.prettier.outcome }}" != "success" || "${{ steps.typecheck.outcome }}" != "success" ]]; then
+            echo "コードスタイルチェックに失敗しました"
+            exit 1
+          fi
+
+  # テスト実行ジョブ
+  test:
+    name: テスト実行
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          # workflow_dispatchでpreview_branchが指定されている場合は、そのブランチを使用
+          ref: ${{ github.event.inputs.preview_branch || github.ref }}
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # テスト実行
+      - name: テストの実行
+        run: pnpm test:ci
         continue-on-error: true
-        run: pnpm test:coverage || echo "::warning::カバレッジチェックでエラーが発生しましたが、開発段階のため続行します"
 
-  # テスト結果のPRコメント（PRの場合のみ）
-  # 注意: reusable-test-reporting.ymlワークフローでは以下の入力が必要です
-  # - test_type: テストの種類を指定
-  # - junit_path: JUnitレポートのパス（デフォルトは'junit.xml'）
-  # - coverage_path: カバレッジレポートのディレクトリパス（デフォルトは'coverage'）
-  # - comment_on_pr: PRにコメントするかどうか（デフォルトはfalse）
-  # - retention_days: アーティファクト保持日数
-  test-report:
-    name: テスト結果レポート
-    needs: [lint-and-test]
-    if: github.event_name == 'pull_request' && always()
-    uses: ./.github/workflows/reusable-test-reporting.yml
-    with:
-      test_type: 'develop-ci'
-      coverage_path: 'coverage'
-      comment_on_pr: true
-      retention_days: 7
-      fail_on_empty: false
+      # テスト結果サマリー生成
+      - name: テスト結果サマリー生成
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              // テスト結果をPRにコメント
+              const status = '${{ job.status }}' === 'success' ? '✅ 成功' : '❌ 失敗';
+              const comment = `## テスト実行結果: ${status}
 
-  # ステップ3: 開発環境向けデプロイ（プッシュまたは手動実行時のみ）
-  # 注意: reusable-deploy.ymlワークフローでは以下のシークレットが必要です
-  # - CF_API_TOKEN: Cloudflare API トークン
-  # - CF_ACCOUNT_ID: Cloudflare アカウントID
-  # - SLACK_WEBHOOK: Slack通知用のWebhook URL（オプション）
-  deploy-develop:
+              - 実行日時: ${new Date().toISOString()}
+              - コミット: ${process.env.GITHUB_SHA}
+              - ワークフロー: [${process.env.GITHUB_WORKFLOW}](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})
+              `;
+
+              if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: comment
+                });
+              }
+            } catch (error) {
+              console.error('コメント投稿中にエラーが発生しました:', error);
+            }
+
+  # 開発環境へのデプロイ
+  deploy:
     name: 開発環境デプロイ
-    needs: [lint-and-test]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # PR時は実行しない（プレビュー環境へデプロイする）
+    if: github.event_name != 'pull_request' && github.event.inputs.preview_branch == ''
+    needs: [lint, test]
     permissions:
       contents: read
       deployments: write
+      id-token: write # OIDC認証用
     uses: ./.github/workflows/reusable-deploy.yml
     with:
-      environment: 'development'
-      app_url: 'https://512dca79.automationa-tools.pages.dev'
-      branch_name: ${{ github.event.inputs.preview_branch || 'develop' }}
-      next_public_env: 'development'
+      environment: development
+      app_url: https://automationa-tools.pages.dev
+      branch_name: develop
+      next_public_env: development
+      send_notification: true
       strict_validation: false
-      send_notification: false
     secrets:
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
 
-  # ステップ4: PR時のプレビューデプロイ
-  # PR時にプレビュー環境にデプロイを行う（オプション機能）
+  # PRのプレビュー環境へのデプロイ
   deploy-preview:
-    name: プレビューデプロイ
-    needs: [lint-and-test]
-    if: github.event_name == 'pull_request'
+    name: プレビュー環境デプロイ
+    if: github.event_name == 'pull_request' || github.event.inputs.preview_branch != ''
+    needs: [lint, test]
     permissions:
       contents: read
       deployments: write
+      id-token: write # OIDC認証用
+      pull-requests: write # PRコメント用
     uses: ./.github/workflows/reusable-deploy.yml
     with:
-      environment: 'preview'
-      app_url: 'https://pr-${{ github.event.pull_request.number }}.automationa-tools.pages.dev'
-      branch_name: 'pr-${{ github.event.pull_request.number }}'
-      next_public_env: 'development'
-      strict_validation: false
+      environment: preview
+      app_url: ${{ github.event_name == 'pull_request' && format('https://pr-{0}.automationa-tools.pages.dev', github.event.number) || format('https://{0}.automationa-tools.pages.dev', github.event.inputs.preview_branch) }}
+      branch_name: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || github.event.inputs.preview_branch }}
+      next_public_env: development
       send_notification: false
+      strict_validation: false
     secrets:
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
 
-  # PR時のプレビューURLコメント
+  # プレビューデプロイURLをPRにコメント
   comment-preview-url:
     name: プレビューURLコメント
+    if: github.event_name == 'pull_request'
     needs: [deploy-preview]
-    if: github.event_name == 'pull_request' && always()
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
-      - name: PRコメント追加
+      - name: プレビューURLコメント
         uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const previewUrl = `https://pr-${context.issue.number}.automationa-tools.pages.dev`;
+
+            const comment = `## 🚀 プレビュー環境がデプロイされました
+
+            プレビューURL: [${previewUrl}](${previewUrl})
+
+            このプレビュー環境は自動的に作成され、PRがマージまたはクローズされると削除されます。`;
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: `## 🔍 プレビュー環境デプロイ完了
-
-              このPRのプレビュー環境が利用可能です：
-              🌐 [プレビューURL](https://pr-${{ github.event.pull_request.number }}.automationa-tools.pages.dev)
-
-              変更内容を確認してレビューしてください。`
+              body: comment
             });

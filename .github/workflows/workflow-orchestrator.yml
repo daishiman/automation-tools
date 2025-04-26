@@ -55,6 +55,32 @@ jobs:
           echo "コミットSHA: ${{ github.sha }}"
           echo "指定されたブランチ: ${{ github.event.inputs.target_branch || 'なし' }}"
 
+      # キャッシュ問題に対応するためのNode.js環境セットアップ
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      # 基本的な依存関係のインストール
+      - name: 依存関係のインストール（タイムアウト対策）
+        id: install
+        run: |
+          # キャッシュタイムアウト対策でメモリ設定調整
+          export NODE_OPTIONS="--max-old-space-size=4096"
+          pnpm install --prefer-offline --no-frozen-lockfile
+        continue-on-error: true
+
       # ワークフロー実行コマンドを改善
       - name: ユニットテストワークフローの実行
         uses: actions/github-script@v6
