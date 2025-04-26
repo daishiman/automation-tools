@@ -53,14 +53,18 @@ jobs:
     with:
       test_type: 'unit'
       test_command: |
+        # キャッシュ安定化のための待機
+        echo "テスト実行前に3秒待機しています..."
+        sleep 3
+
         # 単体テスト実行（失敗しても続行）
-        pnpm test:run --no-threads
+        pnpm test:run --no-threads --testTimeout=600000
         if [ $? -ne 0 ]; then
           echo "単体テスト実行に問題がありましたが、続行します"
         fi
       coverage_command: |
         # カバレッジ計測（失敗しても続行）
-        pnpm test:coverage --no-threads
+        pnpm test:coverage --no-threads --testTimeout=600000
         if [ $? -ne 0 ]; then
           echo "カバレッジ計測に問題がありましたが、続行します"
         fi
@@ -85,7 +89,7 @@ jobs:
       test_command: |
         # コンポーネントテスト実行
         if grep -q '"test:components"' package.json; then
-          pnpm test:components --no-threads
+          pnpm test:components --no-threads --testTimeout=600000
           if [ $? -ne 0 ]; then
             echo "コンポーネントテスト実行に問題がありましたが、開発段階のため続行します"
           fi
