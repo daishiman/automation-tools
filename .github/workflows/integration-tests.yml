@@ -49,6 +49,10 @@ jobs:
   api-tests:
     name: API統合テスト
     uses: ./.github/workflows/reusable-test-execution.yml
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     with:
       test_type: 'api-integration'
       test_command: |
@@ -78,6 +82,10 @@ jobs:
   page-tests:
     name: ページ統合テスト
     uses: ./.github/workflows/reusable-test-execution.yml
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     with:
       test_type: 'page-integration'
       test_command: |
@@ -117,6 +125,10 @@ jobs:
   db-tests:
     name: データベース統合テスト
     uses: ./.github/workflows/reusable-test-execution.yml
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     with:
       test_type: 'db-integration'
       test_command: |
@@ -170,8 +182,9 @@ jobs:
     if: github.event_name == 'pull_request' && always()
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: write
       contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: テスト結果サマリー作成
         run: |
