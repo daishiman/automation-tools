@@ -42,9 +42,9 @@ on:
 
 # 権限の継承を明示的に指定
 permissions:
-  contents: read  # アーティファクトの読み取り
-  issues: write   # PRコメント用
-  pull-requests: write  # PRコメント用
+  contents: read # アーティファクトの読み取り
+  issues: write # PRコメント用
+  pull-requests: write # PRコメント用
 
 jobs:
   process-results:
