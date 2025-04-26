@@ -220,6 +220,9 @@ jobs:
           apiToken: ${{ secrets.CF_API_TOKEN }}
           accountId: ${{ secrets.CF_ACCOUNT_ID }}
           command: pages deploy out --project-name=automationa-tools --branch=${{ inputs.branch_name }} --commit-dirty=true
+          packageManager: pnpm
+          wranglerVersion: '4.13.2'
+          workingDirectory: .
         env:
           CF_PAGES_DEBUG: true # デバッグログを有効化
           CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
