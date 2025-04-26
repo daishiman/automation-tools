@@ -1,0 +1,156 @@
+name: コードフォーマットチェック
+
+# コードのフォーマット（整形）をチェックするワークフロー
+on:
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
+  workflow_dispatch: # 手動実行も可能
+
+# 実行の最適化（同時実行を防止）
+concurrency:
+  group: format-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# ジョブに必要な権限を追加
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  prettier:
+    name: Prettier検証
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # フォーマットのチェック（変更のみ）
+      - name: フォーマットチェック（チェックモード）
+        run: pnpm format
+        continue-on-error: true
+
+      # PRの場合、自動修正と差分コメント
+      - name: 自動フォーマット修正（PRの場合）
+        if: github.event_name == 'pull_request'
+        run: |
+          # フォーマット修正を実行
+          pnpm format
+
+          # 変更があったファイル一覧を取得
+          FILES_CHANGED=$(git diff --name-only)
+
+          # 変更があれば出力
+          if [ -n "$FILES_CHANGED" ]; then
+            echo "以下のファイルのフォーマットを修正しました:"
+            echo "$FILES_CHANGED"
+            echo "フォーマット修正の詳細:"
+            git diff
+          else
+            echo "すべてのファイルは正しくフォーマットされています。"
+          fi
+
+      # PRにフォーマット結果をコメント
+      - name: フォーマット結果のコメント
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { execSync } = require('child_process');
+
+            try {
+              // 差分を取得
+              const diffOutput = execSync('git diff --name-only').toString().trim();
+              const filesChanged = diffOutput.split('\n').filter(file => file);
+
+              let message;
+              if (filesChanged.length > 0) {
+                message = `## Prettierフォーマットチェック結果
+
+                ⚠️ 以下のファイルにフォーマット問題があります:
+
+                ${filesChanged.map(file => `- \`${file}\``).join('\n')}
+
+                このPRをマージする前に、\`pnpm format\`を実行してコードを整形してください。`;
+              } else {
+                message = `## Prettierフォーマットチェック結果
+
+                ✅ すべてのファイルは正しくフォーマットされています。`;
+              }
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: message
+              });
+            } catch (error) {
+              console.error('フォーマットレポートの生成に失敗しました:', error);
+            }
+
+  editorconfig:
+    name: EditorConfig検証
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      # EditorConfigの検証用ツールインストール
+      - name: editorconfig-checkerのインストール
+        run: |
+          curl -L https://github.com/editorconfig-checker/editorconfig-checker/releases/download/2.7.0/ec-linux-amd64.tar.gz | tar xz
+          chmod +x bin/ec-linux-amd64
+          mv bin/ec-linux-amd64 bin/ec
+
+      # EditorConfig設定に従っているかチェック
+      - name: EditorConfig検証実行
+        run: |
+          # すべてのファイルをチェック（一部除外）
+          ./bin/ec -exclude "\\.git|node_modules|dist|build|\\.png|\\.jpg|\\.svg|\\.ico|\\.woff|\\.woff2"
+
+      # PRの場合にレポートをコメント
+      - name: EditorConfig結果のコメント
+        if: github.event_name == 'pull_request' && failure()
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## EditorConfig検証結果
+
+              ❌ EditorConfig検証に失敗しました。
+
+              詳細は[こちらのログ](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})を確認してください。
+
+              - インデントやファイル終端の改行が.editorconfigの設定に従っていることを確認してください。
+              - 行末の空白文字を削除してください。
+              - ファイルの文字コードがUTF-8であることを確認してください。`
+            });

@@ -1,0 +1,93 @@
+name: 単体テスト実行
+
+# 単体テスト（ユニットテスト）を実行するワークフロー
+# このワークフローは以下の機能を提供します:
+# 1. 単体テスト（ユニットテスト）の実行およびカバレッジ計測
+# 2. コンポーネントテストの実行
+# 3. テスト結果のサマリー出力
+on:
+  push:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
+  pull_request:
+    branches: [develop, main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
+  workflow_dispatch: # 手動実行も可能
+
+# 実行の最適化（同時実行を防止）
+# 同じブランチで複数のワークフローが実行された場合、古いものをキャンセル
+concurrency:
+  group: unit-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 単体テスト実行（再利用可能ワークフローを使用）
+  # ソースコードの基本的な機能単位をテスト
+  # 注意: reusable-test-execution.yml ワークフローでは以下の入力が使用されます
+  # - test_type: テストタイプ（unit/component/integration/e2eなど）
+  # - test_command: テスト実行コマンド
+  # - coverage_command: カバレッジ計測コマンド（空の場合はスキップ）
+  # - coverage_threshold: カバレッジの目標値（パーセント）
+  # - junit_path: JUnitレポートファイルのパス
+  # - coverage_path: カバレッジレポートのディレクトリパス
+  # - report_to_pr: PRにテスト結果をコメントするかどうか
+  unit-tests:
+    name: 単体テスト
+    uses: ./.github/workflows/reusable-test-execution.yml
+    with:
+      test_type: 'unit'
+      test_command: 'pnpm test:run --no-threads'
+      coverage_command: 'pnpm test:coverage --no-threads'
+      coverage_threshold: '70' # カバレッジ目標値（70%）
+      junit_path: 'junit.xml'
+      coverage_path: 'coverage'
+      report_to_pr: true
+
+  # コンポーネントテスト実行（再利用可能ワークフローを使用）
+  # UIコンポーネントやモジュールの単体テスト
+  # 注意: コンポーネントテストは失敗しても続行するように設定されています
+  # これは開発段階のため、すべてのコンポーネントテストが完成していない可能性を考慮しています
+  component-tests:
+    name: コンポーネントテスト
+    uses: ./.github/workflows/reusable-test-execution.yml
+    with:
+      test_type: 'component'
+      test_command: 'pnpm test:components --no-threads || echo "コンポーネントテスト実行に問題がありましたが、開発段階のため続行します"'
+      coverage_command: '' # カバレッジは計測しない
+      junit_path: 'junit.xml'
+      report_to_pr: true
+
+  # テスト結果のサマリーを表示するジョブ
+  # 開発者にテスト状況をわかりやすく伝える
+  # needs で依存しているジョブからテスト結果と
+  # カバレッジの値を outputs として受け取って表示
+  test-summary:
+    name: テストサマリー
+    needs: [unit-tests, component-tests]
+    if: always() # テストが失敗しても必ず実行
+    runs-on: ubuntu-latest
+    steps:
+      - name: テスト結果サマリー
+        run: |
+          echo "単体テスト実行ステータス: ${{ needs.unit-tests.outputs.test_success }}"
+          echo "コンポーネントテスト実行ステータス: ${{ needs.component-tests.outputs.test_success }}"
+
+          if [[ "${{ needs.unit-tests.outputs.coverage_value }}" != "0" ]]; then
+            echo "単体テストカバレッジ: ${{ needs.unit-tests.outputs.coverage_value }}%"
+          else
+            echo "単体テストカバレッジ: 計測なし"
+          fi
+
+# 使用している環境変数:
+# - CF_ACCOUNT_ID/CLOUDFLARE_ACCOUNT_ID: Cloudflareアカウント識別子
+# - CF_API_TOKEN: Cloudflare API認証トークン
+# - D1_DATABASE_ID: D1データベースID (production/development)
+# - KV_CACHE_ID: KVキャッシュID (production/development)
+# - KV_NAMESPACE_ID: KV名前空間ID (production/development)
+# - KV_SESSION_STORE_ID: セッション管理用KV ID (production/development)

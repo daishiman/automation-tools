@@ -1,0 +1,109 @@
+name: 開発環境 CI/CD
+
+# 開発環境向けワークフロー
+# 対象: developブランチへのプッシュ・PR、または手動実行
+on:
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
+  pull_request:
+    branches: [develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
+  workflow_dispatch: # 手動実行も可能
+
+# 実行の最適化（同時実行を防止）
+concurrency:
+  group: develop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ステップ1: 環境セットアップ（再利用可能ワークフローから呼び出し）
+  setup:
+    name: 環境セットアップ
+    uses: ./.github/workflows/reusable-setup.yml
+    with:
+      node_version: '20'
+      pnpm_version: '8.10.0'
+      install_dependencies: true
+
+  # ステップ2: テストと検証
+  # プッシュ、PR、手動実行時に必ず実行する
+  lint-and-test:
+    name: 型チェック・リント・テスト
+    needs: [setup]
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: リント実行
+        run: pnpm lint
+
+      - name: 型チェック
+        run: pnpm type-check
+
+      - name: ユニットテスト実行
+        run: pnpm test
+
+      - name: テストカバレッジチェック
+        run: pnpm test:coverage
+
+  # テスト結果のPRコメント（PRの場合のみ）
+  # 注意: reusable-test-reporting.ymlワークフローでは以下の入力が必要です
+  # - test_type: テストの種類を指定
+  # - junit_path: JUnitレポートのパス（デフォルトは'junit.xml'）
+  # - coverage_path: カバレッジレポートのディレクトリパス（デフォルトは'coverage'）
+  # - comment_on_pr: PRにコメントするかどうか（デフォルトはfalse）
+  # - retention_days: アーティファクト保持日数
+  test-report:
+    name: テスト結果レポート
+    needs: [lint-and-test]
+    if: github.event_name == 'pull_request' && always()
+    uses: ./.github/workflows/reusable-test-reporting.yml
+    with:
+      test_type: 'develop-ci'
+      coverage_path: 'coverage'
+      comment_on_pr: true
+      retention_days: 7
+
+  # ステップ3: 開発環境向けデプロイ（プッシュまたは手動実行時のみ）
+  # 注意: reusable-deploy.ymlワークフローでは以下のシークレットが必要です
+  # - CF_API_TOKEN: Cloudflare API トークン
+  # - CF_ACCOUNT_ID: Cloudflare アカウントID
+  # - SLACK_WEBHOOK: Slack通知用のWebhook URL（オプション）
+  deploy-develop:
+    name: 開発環境デプロイ
+    needs: [lint-and-test]
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: 'development'
+      app_url: 'https://512dca79.automationa-tools.pages.dev'
+      branch_name: 'develop'
+      next_public_env: 'development'
+      strict_validation: false
+      send_notification: false
+    secrets:
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}

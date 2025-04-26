@@ -1,0 +1,79 @@
+name: デプロイ後検証
+
+on:
+  workflow_run:
+    workflows: ['本番環境 CI/CD']
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  verify-production:
+    name: 本番環境検証
+    # デプロイワークフローが成功した場合のみ実行
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      # 基本検証
+      - name: 本番環境の基本検証
+        run: |
+          # ステータスコード確認
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://main.automationa-tools.pages.dev/)
+          if [ "$STATUS_CODE" -ne 200 ]; then
+            echo "エラー: ステータスコードが200ではありません: $STATUS_CODE"
+            exit 1
+          fi
+
+          # コンテンツ確認
+          CONTENT=$(curl -s https://main.automationa-tools.pages.dev/)
+          if ! echo "$CONTENT" | grep -q "Automationa Tools"; then
+            echo "エラー: 期待されるコンテンツが見つかりません"
+            exit 1
+          fi
+
+          echo "✅ 基本検証: 成功"
+
+      # 詳細検証
+      - name: Playwrightのセットアップ
+        uses: microsoft/playwright-github-action@v1
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: |
+          pnpm install
+          pnpm exec playwright install --with-deps chromium
+
+      # E2Eテスト
+      - name: 本番E2Eテスト
+        run: pnpm test:e2e:prod
+        env:
+          PLAYWRIGHT_TEST_BASE_URL: https://main.automationa-tools.pages.dev/
+
+      # 通知
+      - name: 検証結果の通知
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: 本番デプロイ検証 ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: 本番
+            URL: https://main.automationa-tools.pages.dev/
+            ステータス: ${{ job.status }}

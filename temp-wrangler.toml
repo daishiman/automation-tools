@@ -1,0 +1,114 @@
+name = "automationa-tools"
+# mainを削除（Pagesではサポートされていない）
+compatibility_date = "2023-06-28"
+compatibility_flags = [ "nodejs_compat" ]
+# workers_devを削除
+# pages_build_output_dirの代わりにpages_build_output_dirを使用
+pages_build_output_dir = "out"  # Cloudflare Pagesのビルド出力ディレクトリ
+# ビルドコマンド
+build.command = "pnpm run build"
+
+# ローカル開発用の共通変数
+[vars]
+APP_NAME = "Automationa Tools Local"
+ENVIRONMENT = "local"
+DATABASE = "local"
+NODE_ENV = "development"
+
+# ローカル開発用のD1データベース設定
+[[d1_databases]]
+binding = "DB"
+database_name = "automationa-tools-local-db"
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # ダミーID（実際のIDに置き換える）
+
+# ローカル開発用のKVネームスペース設定
+[[kv_namespaces]]
+binding = "KV_CACHE"
+id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # ダミーID（実際のIDに置き換える）
+
+# ローカル開発用のR2バケット設定
+[[r2_buckets]]
+binding = "R2_STORAGE"
+bucket_name = "local-automationa-tools-storage" # ダミー名（実際のバケット名に置き換える）
+
+# ===========================================================
+# ローカル環境設定（env.local）
+# ===========================================================
+[env.local]
+env_path = ".env.local"  # ローカル開発用の環境変数ファイル
+
+# 環境変数設定（ローカル）
+[env.local.vars]
+APP_NAME = "Automationa Tools Local"
+ENVIRONMENT = "local"
+DATABASE = "local"
+NODE_ENV = "development"
+
+# ===========================================================
+# 本番環境（production）設定
+# ===========================================================
+[env.production]
+env_path = ".env.production"
+
+# 環境変数設定（プロダクション）
+[env.production.vars]
+APP_NAME = "Automationa Tools"
+ENVIRONMENT = "production"
+DATABASE = "prod"
+
+# D1データベース設定（プロダクション）
+[[env.production.d1_databases]]
+binding = "DB"  # バインディング名
+database_name = "automationa-tools-prod-db"  # Cloudflare DashboardのD1データベース名
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # ダミーID（実際のIDに置き換える）
+
+# KVネームスペース設定（プロダクション）
+[[env.production.kv_namespaces]]
+binding = "KV_CACHE"  # バインディング名
+id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # ダミーID（実際のIDに置き換える）
+
+# R2バケット設定（プロダクション）
+[[env.production.r2_buckets]]
+binding = "R2_STORAGE"  # バインディング名
+bucket_name = "prod-automationa-tools-storage" # ダミー名（実際のバケット名に置き換える）
+
+# ===========================================================
+# 開発環境（preview）設定
+# ===========================================================
+[env.preview]
+env_path = ".env.preview"
+
+# 環境変数設定（プレビュー）
+[env.preview.vars]
+APP_NAME = "automationa-tools-preview"
+ENVIRONMENT = "preview"
+DATABASE = "preview"
+
+# D1データベース設定（プレビュー）
+[[env.preview.d1_databases]]
+binding = "DB"  # バインディング名
+database_name = "automationa-tools-preview-db"  # Cloudflare DashboardのD1データベース名
+database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # ダミーID（実際のIDに置き換える）
+
+# KVネームスペース設定（プレビュー）
+[[env.preview.kv_namespaces]]
+binding = "KV_CACHE"  # バインディング名
+id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" # ダミーID（実際のIDに置き換える）
+
+# R2バケット設定（プレビュー）
+[[env.preview.r2_buckets]]
+binding = "R2_STORAGE"  # バインディング名
+bucket_name = "preview-automationa-tools-storage" # ダミー名（実際のバケット名に置き換える）
+
+# .envファイルは、各環境に対応する env_path で自動的に読み込まれます：
+# - production: .env.production (pnpm exec wrangler pages deploy --env=production)
+# - preview: .env.preview (pnpm exec wrangler pages dev --env=preview)
+# - local: .env.local (pnpm exec wrangler pages dev --env=local)
+
+# 注意: ローカル環境はCloudflare Pagesデプロイには使用されません
+# ローカル開発時のみ使用されます
+
+# 注意：
+# - ローカル開発: `pnpm exec wrangler pages dev out` （出力ディレクトリを指定）
+# - プレビューデプロイ: `pnpm exec wrangler pages deploy --env=preview`
+# - 本番デプロイ: `pnpm exec wrangler pages deploy --env=production`

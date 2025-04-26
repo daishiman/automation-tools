@@ -1,0 +1,28 @@
+[
+  {
+    "date": "2025-04-19T10:04:55.825Z",
+    "statements": {
+      "total": 247,
+      "covered": 247,
+      "percentage": "100.00"
+    },
+    "functions": {
+      "total": 14,
+      "covered": 13,
+      "percentage": "92.86"
+    },
+    "branches": {
+      "total": 19,
+      "covered": 17,
+      "percentage": "89.47"
+    },
+    "lines": {
+      "total": 247,
+      "covered": 247,
+      "percentage": "100.00"
+    },
+    "total": {
+      "percentage": "95.58"
+    }
+  }
+]

@@ -1,0 +1,96 @@
+name: データベースマイグレーション
+
+# データベーススキーマの変更を適用するワークフロー
+# 以下の場合に実行されます:
+# 1. 手動実行時（ワークフロー・ディスパッチ）- 環境を選択可能
+# 2. マイグレーションファイルが変更された場合の自動実行
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '適用環境（development/production）'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - production
+  push:
+    branches: [develop, main]
+    paths:
+      - 'db/migrations/**'
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'rules/**'
+
+jobs:
+  migrate:
+    name: マイグレーション実行
+    runs-on: ubuntu-latest
+    # 指定された環境に基づいて実行環境を設定
+    # 手動実行時は選択された環境、自動実行時はブランチに基づいて環境を決定
+    # main => production, develop => development
+    environment: ${{ github.event.inputs.environment || (github.ref == 'refs/heads/main' && 'production' || 'development') }}
+
+    steps:
+      # 基本的な環境セットアップステップ
+      # リポジトリのコードを取得し、Node.jsとPNPM環境を準備
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # マイグレーション前のバックアップステップ
+      # マイグレーション適用前にデータベースのバックアップを作成
+      # エラー発生時の復旧に使用可能
+      # Cloudflare D1データベースをR2バケットにバックアップ
+      - name: データベースバックアップ
+        run: pnpm db:backup
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
+
+      # マイグレーション実行ステップ
+      # データベーススキーマの変更を適用
+      # Cloudflare D1データベースに対してマイグレーションを実行
+      - name: マイグレーション適用
+        run: pnpm db:migrate
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          ENVIRONMENT: ${{ vars.ENVIRONMENT }}
+
+      # 結果通知ステップ
+      # マイグレーションの成功・失敗をSlackに通知
+      # 成功の場合は緑色、失敗の場合は赤色で通知
+      # 常に実行されるため、エラー発生時も通知が行われる
+      - name: マイグレーション結果通知
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: データベースマイグレーション ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: ${{ vars.ENVIRONMENT }}
+            データベース: ${{ vars.D1_DATABASE_NAME }}
+            ステータス: ${{ job.status }}
