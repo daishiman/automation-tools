@@ -16,6 +16,11 @@ on:
       - 'docs/**'
       - 'rules/**'
   workflow_dispatch: # 手動実行も可能
+    inputs:
+      preview_branch:
+        description: 'プレビューデプロイするブランチ名（feature/**など）'
+        required: false
+        type: string
 
 # 実行の最適化（同時実行を防止）
 concurrency:
@@ -41,6 +46,8 @@ jobs:
     steps:
       - name: ソースコードのチェックアウト
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.preview_branch || github.ref }}
 
       - name: PNPMのセットアップ
         uses: pnpm/action-setup@v2
@@ -99,7 +106,7 @@ jobs:
     with:
       environment: 'development'
       app_url: 'https://512dca79.automationa-tools.pages.dev'
-      branch_name: 'develop'
+      branch_name: ${{ github.event.inputs.preview_branch || 'develop' }}
       next_public_env: 'development'
       strict_validation: false
       send_notification: false
@@ -107,3 +114,48 @@ jobs:
       CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
       CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+  # ステップ4: PR時のプレビューデプロイ
+  # PR時にプレビュー環境にデプロイを行う（オプション機能）
+  deploy-preview:
+    name: プレビューデプロイ
+    needs: [lint-and-test]
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: 'preview'
+      app_url: 'https://pr-${{ github.event.pull_request.number }}.automationa-tools.pages.dev'
+      branch_name: 'pr-${{ github.event.pull_request.number }}'
+      next_public_env: 'development'
+      strict_validation: false
+      send_notification: false
+    secrets:
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+  # PR時のプレビューURLコメント
+  comment-preview-url:
+    name: プレビューURLコメント
+    needs: [deploy-preview]
+    if: github.event_name == 'pull_request' && always()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: PRコメント追加
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## 🔍 プレビュー環境デプロイ完了
+
+              このPRのプレビュー環境が利用可能です：
+              🌐 [プレビューURL](https://pr-${{ github.event.pull_request.number }}.automationa-tools.pages.dev)
+
+              変更内容を確認してレビューしてください。`
+            });

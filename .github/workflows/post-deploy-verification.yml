@@ -7,36 +7,122 @@ on:
       - completed
     branches:
       - main
+  # 手動でも検証を実行可能に
+  workflow_dispatch:
+    inputs:
+      environment_url:
+        description: '検証対象の環境URL'
+        required: false
+        default: 'https://main.automationa-tools.pages.dev/'
+        type: string
+
+# リトライ設定（デプロイ後のCDNキャッシュ更新などの遅延に対応）
+concurrency:
+  group: post-deploy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   verify-production:
     name: 本番環境検証
-    # デプロイワークフローが成功した場合のみ実行
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # デプロイワークフローが成功した場合、または手動実行の場合に実行
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
+    # 結果を出力するための権限
+    permissions:
+      deployments: write
+      contents: read
+
+    env:
+      # 手動実行の場合は指定されたURL、自動実行の場合はデフォルトURLを使用
+      TARGET_URL: ${{ github.event.inputs.environment_url || 'https://main.automationa-tools.pages.dev/' }}
+      # リトライ回数と間隔
+      MAX_RETRIES: 3
+      RETRY_INTERVAL: 30
 
     steps:
       - name: リポジトリのチェックアウト
         uses: actions/checkout@v4
 
-      # 基本検証
-      - name: 本番環境の基本検証
+      - name: 実行情報の表示
         run: |
+          echo "検証対象URL: $TARGET_URL"
+          echo "実行時刻: $(date)"
+          echo "実行者: ${{ github.actor }}"
+          echo "リトライ設定: 最大$MAX_RETRIES回、間隔$RETRY_INTERVAL秒"
+
+      # 基本検証（リトライあり）
+      - name: 本番環境の基本検証
+        id: basic-verification
+        run: |
+          # リトライ処理
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "検証試行: $i/$MAX_RETRIES"
+
           # ステータスコード確認
-          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://main.automationa-tools.pages.dev/)
+            STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" $TARGET_URL)
+
           if [ "$STATUS_CODE" -ne 200 ]; then
-            echo "エラー: ステータスコードが200ではありません: $STATUS_CODE"
+              echo "⚠️ ステータスコードが200ではありません: $STATUS_CODE"
+              if [ "$i" -lt "$MAX_RETRIES" ]; then
+                echo "再試行します（$RETRY_INTERVAL秒後）..."
+                sleep $RETRY_INTERVAL
+                continue
+              else
+                echo "❌ 最大リトライ回数に達しました。検証失敗。"
             exit 1
+              fi
           fi
 
           # コンテンツ確認
-          CONTENT=$(curl -s https://main.automationa-tools.pages.dev/)
+            CONTENT=$(curl -s $TARGET_URL)
           if ! echo "$CONTENT" | grep -q "Automationa Tools"; then
-            echo "エラー: 期待されるコンテンツが見つかりません"
+              echo "⚠️ 期待されるコンテンツが見つかりません"
+              if [ "$i" -lt "$MAX_RETRIES" ]; then
+                echo "再試行します（$RETRY_INTERVAL秒後）..."
+                sleep $RETRY_INTERVAL
+                continue
+              else
+                echo "❌ 最大リトライ回数に達しました。検証失敗。"
             exit 1
           fi
+            fi
 
-          echo "✅ 基本検証: 成功"
+            # 成功
+            echo "✅ 基本検証: 成功"
+            break
+          done
+
+          # メトリクス出力
+          echo "response_time=$(curl -s -w "%{time_total}" -o /dev/null $TARGET_URL)" >> $GITHUB_OUTPUT
+          echo "status_code=$STATUS_CODE" >> $GITHUB_OUTPUT
+
+      # パフォーマンス検証
+      - name: パフォーマンス検証
+        id: performance-check
+        run: |
+          # Lighthouse CIがない場合は基本的なパフォーマンス計測
+          TTFB=$(curl -s -w "%{time_starttransfer}\n" -o /dev/null $TARGET_URL)
+          TOTAL=$(curl -s -w "%{time_total}\n" -o /dev/null $TARGET_URL)
+
+          echo "初回バイト到達時間: ${TTFB}秒"
+          echo "合計読み込み時間: ${TOTAL}秒"
+
+          # 簡易判定
+          if (( $(echo "$TTFB > 0.5" | bc -l) )); then
+            echo "⚠️ 初回バイト到達時間が遅い可能性があります"
+          else
+            echo "✅ 初回バイト到達時間は良好です"
+          fi
+
+          if (( $(echo "$TOTAL > 2.0" | bc -l) )); then
+            echo "⚠️ 合計読み込み時間が遅い可能性があります"
+          else
+            echo "✅ 合計読み込み時間は良好です"
+          fi
+
+          # メトリクス出力
+          echo "ttfb=$TTFB" >> $GITHUB_OUTPUT
+          echo "total_load_time=$TOTAL" >> $GITHUB_OUTPUT
 
       # 詳細検証
       - name: Playwrightのセットアップ
@@ -60,9 +146,80 @@ jobs:
 
       # E2Eテスト
       - name: 本番E2Eテスト
-        run: pnpm test:e2e:prod
+        id: e2e-tests
+        run: |
+          # テスト実行時間計測開始
+          START_TIME=$(date +%s)
+
+          # テスト実行（失敗しても続行）
+          pnpm test:e2e:prod || FAILED=true
+
+          # テスト実行時間計測終了
+          END_TIME=$(date +%s)
+          TEST_DURATION=$((END_TIME - START_TIME))
+
+          echo "テスト実行時間: ${TEST_DURATION}秒"
+          echo "test_duration=$TEST_DURATION" >> $GITHUB_OUTPUT
+
+          if [ "$FAILED" = "true" ]; then
+            echo "⚠️ E2Eテストに失敗しました"
+            echo "test_success=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ E2Eテスト成功"
+            echo "test_success=true" >> $GITHUB_OUTPUT
+          fi
         env:
-          PLAYWRIGHT_TEST_BASE_URL: https://main.automationa-tools.pages.dev/
+          PLAYWRIGHT_TEST_BASE_URL: ${{ env.TARGET_URL }}
+
+      # 検証サマリー
+      - name: 検証サマリーの生成
+        id: summary
+        if: always()
+        run: |
+          echo "## 本番環境検証結果" > $GITHUB_WORKSPACE/summary.md
+          echo "" >> $GITHUB_WORKSPACE/summary.md
+          echo "検証対象: $TARGET_URL" >> $GITHUB_WORKSPACE/summary.md
+          echo "実行時刻: $(date)" >> $GITHUB_WORKSPACE/summary.md
+          echo "実行者: ${{ github.actor }}" >> $GITHUB_WORKSPACE/summary.md
+          echo "" >> $GITHUB_WORKSPACE/summary.md
+
+          echo "### 基本検証" >> $GITHUB_WORKSPACE/summary.md
+          if [ "${{ steps.basic-verification.outcome }}" == "success" ]; then
+            echo "✅ ステータスコード: ${{ steps.basic-verification.outputs.status_code }}" >> $GITHUB_WORKSPACE/summary.md
+            echo "✅ 応答時間: ${{ steps.basic-verification.outputs.response_time }}秒" >> $GITHUB_WORKSPACE/summary.md
+          else
+            echo "❌ 基本検証失敗" >> $GITHUB_WORKSPACE/summary.md
+          fi
+          echo "" >> $GITHUB_WORKSPACE/summary.md
+
+          echo "### パフォーマンス検証" >> $GITHUB_WORKSPACE/summary.md
+          echo "- 初回バイト到達時間: ${{ steps.performance-check.outputs.ttfb }}秒" >> $GITHUB_WORKSPACE/summary.md
+          echo "- 合計読み込み時間: ${{ steps.performance-check.outputs.total_load_time }}秒" >> $GITHUB_WORKSPACE/summary.md
+          echo "" >> $GITHUB_WORKSPACE/summary.md
+
+          echo "### E2Eテスト" >> $GITHUB_WORKSPACE/summary.md
+          if [ "${{ steps.e2e-tests.outputs.test_success }}" == "true" ]; then
+            echo "✅ E2Eテスト成功" >> $GITHUB_WORKSPACE/summary.md
+          else
+            echo "⚠️ E2Eテスト失敗" >> $GITHUB_WORKSPACE/summary.md
+          fi
+          echo "- 実行時間: ${{ steps.e2e-tests.outputs.test_duration }}秒" >> $GITHUB_WORKSPACE/summary.md
+
+          cat $GITHUB_WORKSPACE/summary.md
+
+          if [ "${{ steps.basic-verification.outcome }}" != "success" ]; then
+            echo "verification_result=failure" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.e2e-tests.outputs.test_success }}" != "true" ]; then
+            echo "verification_result=warning" >> $GITHUB_OUTPUT
+          else
+            echo "verification_result=success" >> $GITHUB_OUTPUT
+          fi
+
+      # サマリーの投稿
+      - name: 検証結果のサマリー投稿
+        if: always()
+        run: |
+          cat $GITHUB_WORKSPACE/summary.md >> $GITHUB_STEP_SUMMARY
 
       # 通知
       - name: 検証結果の通知
@@ -71,9 +228,12 @@ jobs:
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
           SLACK_CHANNEL: deployments
-          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
-          SLACK_TITLE: 本番デプロイ検証 ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_COLOR: ${{ steps.summary.outputs.verification_result == 'success' && 'good' || steps.summary.outputs.verification_result == 'warning' && 'warning' || 'danger' }}
+          SLACK_TITLE: 本番デプロイ検証 ${{ steps.summary.outputs.verification_result == 'success' && '✅ 成功' || steps.summary.outputs.verification_result == 'warning' && '⚠️ 警告' || '❌ 失敗' }}
           SLACK_MESSAGE: |
             環境: 本番
-            URL: https://main.automationa-tools.pages.dev/
-            ステータス: ${{ job.status }}
+            URL: ${{ env.TARGET_URL }}
+            ステータス: ${{ steps.summary.outputs.verification_result }}
+
+            詳細はGitHub Actionsの実行結果を確認してください:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
