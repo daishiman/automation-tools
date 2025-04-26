@@ -38,11 +38,11 @@ id = "${KV_SESSION_STORE_ID}"
 
 # R2バケット設定（プロダクション）
 [[env.production.r2_buckets]]
-binding = "R2_ASSETS"  # 本番環境アセットストレージ
+binding = "R2_STORAGE"  # 本番環境アセットストレージ
 bucket_name = "${R2_ASSETS_BUCKET_NAME}"
 
 [[env.production.r2_buckets]]
-binding = "R2_BACKUPS"  # 本番環境バックアップストレージ
+binding = "R2_BACKUP"  # 本番環境バックアップストレージ
 bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
 
 # ===========================================================
@@ -76,11 +76,11 @@ id = "${KV_SESSION_STORE_ID}"
 
 # R2バケット設定（プレビュー）
 [[env.preview.r2_buckets]]
-binding = "R2_ASSETS"  # 開発環境アセットストレージ
+binding = "R2_STORAGE"  # 開発環境アセットストレージ
 bucket_name = "${R2_ASSETS_BUCKET_NAME}"
 
 [[env.preview.r2_buckets]]
-binding = "R2_BACKUPS"  # 開発環境バックアップストレージ
+binding = "R2_BACKUP"  # 開発環境バックアップストレージ
 bucket_name = "${R2_BACKUPS_BUCKET_NAME}"
 
 # .envファイルは、各環境に対応する env_path で自動的に読み込まれます：
