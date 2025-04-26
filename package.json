@@ -85,7 +85,7 @@
     "cf:tail:dev": "pnpm cf:tail:preview",
     "cf:db:dev": "pnpm cf:db:preview",
     "prettier": "prettier --write .",
-    "prepare": "husky",
+    "prepare": "[ \"$CI\" = true ] || [ \"$GITHUB_ACTIONS\" = true ] || husky",
     "gh:actions:fetch": "node scripts/github-actions-results.js",
     "gh:actions:fetch:all": "node scripts/github-actions-results.js all",
     "gh:actions:fetch:with-logs": "DOWNLOAD_LOGS=true node scripts/github-actions-results.js all",
