@@ -333,7 +333,19 @@ jobs:
 
       # マイグレーション実行
       - name: 本番データベースマイグレーション
-        run: pnpm cf:db:prod:migrations:apply
+        run: |
+          # wrangler.tomlの環境変数展開用に一時的な.envファイルを作成
+          cat > .env.migration << EOF
+          D1_DATABASE_NAME=${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID=${{ secrets.D1_DATABASE_ID }}
+          KV_CACHE_ID=${{ secrets.KV_CACHE_ID }}
+          KV_SESSION_STORE_ID=${{ secrets.KV_SESSION_STORE_ID }}
+          R2_ASSETS_BUCKET_NAME=${{ vars.R2_ASSETS_BUCKET_NAME }}
+          R2_BACKUPS_BUCKET_NAME=${{ vars.R2_BACKUPS_BUCKET_NAME }}
+          EOF
+
+          # 環境変数ファイルを使用してマイグレーション実行
+          WRANGLER_CONFIG_ENV_PATH=.env.migration pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} --env=production
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}

@@ -86,10 +86,34 @@ jobs:
         run: |
           if [[ "${{ env.ENV_NAME }}" == "production" ]]; then
             echo "本番環境のマイグレーションを実行します..."
-            pnpm cf:db:prod:migrations:apply
+
+            # wrangler.tomlの環境変数展開用に一時的な.envファイルを作成
+            cat > .env.migration << EOF
+            D1_DATABASE_NAME=${{ vars.D1_DATABASE_NAME }}
+            D1_DATABASE_ID=${{ secrets.D1_DATABASE_ID }}
+            KV_CACHE_ID=${{ secrets.KV_CACHE_ID }}
+            KV_SESSION_STORE_ID=${{ secrets.KV_SESSION_STORE_ID }}
+            R2_ASSETS_BUCKET_NAME=${{ vars.R2_ASSETS_BUCKET_NAME }}
+            R2_BACKUPS_BUCKET_NAME=${{ vars.R2_BACKUPS_BUCKET_NAME }}
+            EOF
+
+            # 環境変数ファイルを使用してマイグレーション実行
+            WRANGLER_CONFIG_ENV_PATH=.env.migration pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} --env=production
           else
             echo "開発環境のマイグレーションを実行します..."
-            pnpm cf:db:preview:migrations:apply
+
+            # wrangler.tomlの環境変数展開用に一時的な.envファイルを作成
+            cat > .env.migration << EOF
+            D1_DATABASE_NAME=${{ vars.D1_DATABASE_NAME }}
+            D1_DATABASE_ID=${{ secrets.D1_DATABASE_ID }}
+            KV_CACHE_ID=${{ secrets.KV_CACHE_ID }}
+            KV_SESSION_STORE_ID=${{ secrets.KV_SESSION_STORE_ID }}
+            R2_ASSETS_BUCKET_NAME=${{ vars.R2_ASSETS_BUCKET_NAME }}
+            R2_BACKUPS_BUCKET_NAME=${{ vars.R2_BACKUPS_BUCKET_NAME }}
+            EOF
+
+            # 環境変数ファイルを使用してマイグレーション実行
+            WRANGLER_CONFIG_ENV_PATH=.env.migration pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} --env=preview
           fi
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}

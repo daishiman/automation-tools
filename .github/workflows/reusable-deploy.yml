@@ -257,10 +257,22 @@ jobs:
         run: |
           echo "データベースマイグレーションを実行しています（${{ inputs.environment }}環境）..."
 
+          # wrangler.tomlの環境変数展開用に一時的な.envファイルを作成
+          cat > .env.migration << EOF
+          D1_DATABASE_NAME=${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID=${{ secrets.D1_DATABASE_ID }}
+          KV_CACHE_ID=${{ secrets.KV_CACHE_ID }}
+          KV_SESSION_STORE_ID=${{ secrets.KV_SESSION_STORE_ID }}
+          R2_ASSETS_BUCKET_NAME=${{ vars.R2_ASSETS_BUCKET_NAME }}
+          R2_BACKUPS_BUCKET_NAME=${{ vars.R2_BACKUPS_BUCKET_NAME }}
+          EOF
+
           if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
-            pnpm cf:db:preview:migrations:apply
+            # 環境変数ファイルを使用してマイグレーション実行
+            WRANGLER_CONFIG_ENV_PATH=.env.migration pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} --env=preview
           elif [[ "${{ inputs.environment }}" == "production" ]]; then
-            pnpm cf:db:prod:migrations:apply
+            # 環境変数ファイルを使用してマイグレーション実行
+            WRANGLER_CONFIG_ENV_PATH=.env.migration pnpm exec wrangler d1 migrations apply ${{ vars.D1_DATABASE_NAME }} --env=production
           fi
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
