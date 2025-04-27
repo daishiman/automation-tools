@@ -392,3 +392,38 @@ GitHub Actionsによるマイグレーション自動化も設定されていま
 1. `develop`ブランチへのプッシュ時 → 開発環境に適用
 2. `main`ブランチへのプッシュ時 → 本番環境に適用
 3. マイグレーション関連ファイルの変更時
+
+## Cloudflare API トークンの設定
+
+Cloudflare APIトークンを作成するときは、以下の権限が必要です：
+
+### 必須の権限
+
+- **Account**
+
+  - Workers KV Storage: Edit
+  - Workers R2 Storage: Edit
+  - Workers D1: Edit
+  - Account Settings: Read
+  - Worker Scripts: Edit
+  - Cloudflare Pages: Edit
+
+- **User**
+  - User Details: Read
+
+### トークン作成手順
+
+1. Cloudflare Dashboard → プロフィールアイコン → APIトークン → APIトークンの作成
+2. 「カスタムトークンを作成」を選択
+3. 上記の権限を指定
+4. 使用するアカウントを選択
+5. 作成したトークンを`CLOUDFLARE_API_TOKEN`としてGitHub Secretに設定
+6. アカウントID（ダッシュボードURLに表示される）を`CLOUDFLARE_ACCOUNT_ID`としてGitHub Secretに設定
+
+### 問題のトラブルシューティング
+
+```
+PUT method not allowed for the api_token authentication scheme [code: 10000]
+```
+
+このエラーが表示される場合、トークンに`Workers KV Storage: Edit`権限が不足しています。
