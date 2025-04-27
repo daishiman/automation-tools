@@ -4,26 +4,26 @@
 
 ## 技術スタック
 
-- **言語/フレームワーク**: TypeScript 5.3+, Next.js 14+
-- **インフラ**: Cloudflare Pages, Workers, D1, KV, R2
-- **UIライブラリ**: React 18+, TailwindCSS 3.3+, shadcn/ui
-- **状態管理**: Zustand 4.4+, TanStack Query 5.8+
-- **データベース**: Drizzle ORM 0.29+
-- **APIフレームワーク**: Hono 4.7+
+- **言語/フレームワーク**: TypeScript 5.3+, Next.js 14.0.3+
+- **インフラ**: Cloudflare Pages, Workers 4.13+, D1, KV, R2
+- **UIライブラリ**: React 18.2+, TailwindCSS 3.3.5+, shadcn/ui
+- **状態管理**: Zustand 4.4.6+, TanStack Query 5.8.4+
+- **データベース**: Drizzle ORM 0.42.0+
+- **APIフレームワーク**: Hono 4.7.7+
 - **AIフレームワーク**: Mastra
 
 ## 開発環境セットアップ
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/your-organization/automationa-tools-application.git
+git clone https://github.com/yourusername/automationa-tools-application.git
 cd automationa-tools-application
 
 # 依存関係のインストール
 pnpm install
 
 # 環境変数の設定
-cp .env.sample .env.local
+cp .env-templates/.env.example .env.local
 # .env.localを編集して必要な値を設定
 
 # 開発サーバーの起動
@@ -179,7 +179,7 @@ pnpm cf:tail:prod
 
 ## 既知の問題と対処法
 
-### Next.js設定の警告
+### ~~Next.js設定の警告~~ (解決済み)
 
 ```
 ⚠ Invalid next.config.js options detected:
@@ -188,19 +188,7 @@ pnpm cf:tail:prod
 ⚠ Server Actions are available by default now, `experimental.serverActions` option can be safely removed.
 ```
 
-**修正方法**: `next.config.js`を編集し、`experimental.serverActions`の設定を削除してください。Server Actionsは現在のNext.jsでデフォルトで利用可能です。
-
-```js
-// 修正前
-experimental: {
-  serverActions: true,
-},
-
-// 修正後
-experimental: {
-  // serverActionsは削除
-},
-```
+**修正済み**: `next.config.js`の`experimental.serverActions`設定は削除され、現在のNext.jsバージョンではServer Actionsがデフォルトで利用可能になっています。
 
 ## ドキュメント
 
@@ -209,14 +197,16 @@ experimental: {
 - `overall_rule.md` - アーキテクチャ全体の設計ガイド
 - `initial_setup_guide.md` - 初期設定ガイド
 - `db_infra_setup_guide.md` - DB・インフラ設定ガイド
-- `docs/cloudflare-github-environment-setup.md` - Cloudflare・GitHub環境分離設定ガイド
+- `cloudflare-github-environment-setup.md` - Cloudflare・GitHub環境分離設定ガイド
+- `environment-management.md` - 環境管理ガイド
+- `github-actions-automation-guide.md` - GitHub Actions自動化ガイド
 
 ## サポート
 
 問題が発生した場合は、以下の方法でサポートを受けることができます：
 
-- [GitHub Issues](https://github.com/your-organization/automationa-tools-application/issues)
-- [チームのSlackチャンネル](#) - #automationa-tools-application-support
+- [GitHub Issues](https://github.com/yourusername/automationa-tools-application/issues)
+- チームのSlackチャンネル - #automationa-tools-support
 
 ## ライセンス
 
@@ -321,12 +311,12 @@ pnpm git:setup-wrapper
 
 ### 環境構築
 
-```
+```bash
 # パッケージのインストール
 pnpm install
 
 # 環境変数の設定
-cp .env.example .env
+cp .env-templates/.env.example .env
 ```
 
 ### Git フックのセットアップ
@@ -334,7 +324,7 @@ cp .env.example .env
 このプロジェクトでは、`git add` コマンド実行時に自動的にコード品質チェックを行うカスタムGitフックを利用できます。
 セットアップするには以下のコマンドを実行してください：
 
-```
+```bash
 # カスタムGitフックのインストール
 pnpm git-hooks:install
 
