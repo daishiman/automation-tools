@@ -56,6 +56,14 @@ jobs:
       - name: 依存関係のインストール
         run: pnpm install
 
+      # バージョン設定 - 前方に移動
+      - name: アプリバージョン設定
+        run: |
+          # package.jsonからバージョン取得
+          APP_VERSION="$(node -p "require('./package.json').version")"
+          echo "APP_VERSION=${APP_VERSION}" >> $GITHUB_ENV
+          echo "アプリバージョン: ${APP_VERSION}"
+
       # 環境変数の設定
       - name: 環境変数の設定
         id: env_setup
@@ -88,26 +96,23 @@ jobs:
       # Cloudflare D1データベースに対してマイグレーションを実行
       - name: マイグレーション適用
         run: |
-          echo "データベースマイグレーションを実行しています..."
+          echo "データベースマイグレーションを実行しています（${{ env.ENV_NAME }}環境）..."
 
           # 環境変数の確認
           echo "環境変数とワークスペース情報:"
           echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-          echo "環境名: ${{ github.event.inputs.environment }}"
+          echo "環境名: ${{ env.ENV_NAME }}"
+          echo "D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}"
 
           # 環境設定
-          if [[ "${{ github.event.inputs.environment }}" == "development" || "${{ github.event.inputs.environment }}" == "preview" ]]; then
-            ENV="preview"
-            D1_DB_NAME="automationa-tools-dev-db"
-            echo "マイグレーション実行環境: 開発/プレビュー環境"
-          elif [[ "${{ github.event.inputs.environment }}" == "production" ]]; then
+          if [[ "${{ env.ENV_NAME }}" == "production" ]]; then
             ENV="production"
             D1_DB_NAME="automationa-tools-db"
             echo "マイグレーション実行環境: 本番環境"
           else
             ENV="preview"
             D1_DB_NAME="automationa-tools-dev-db"
-            echo "未指定のため、デフォルトでプレビュー環境を使用します"
+            echo "マイグレーション実行環境: 開発/プレビュー環境"
           fi
 
           echo "使用するデータベース名: ${D1_DB_NAME}"
@@ -147,22 +152,30 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
           pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
             --command="SELECT name FROM sqlite_master WHERE type='table'" \
-            --env=$ENV || echo "テーブル一覧の取得に失敗しましたが続行します"
+            --env=$ENV --remote || echo "テーブル一覧の取得に失敗しましたが続行します"
 
           # マイグレーションファイルの状態確認
           echo "マイグレーションファイルの状態を確認しています..."
           CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
           pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
-            --env=$ENV || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+            --env=$ENV --remote || echo "マイグレーション一覧の取得に失敗しましたが続行します"
 
-          # マイグレーション実行（--debugフラグを削除）
+          # マイグレーション実行
           echo "マイグレーションを適用しています..."
           echo "使用データベース名: ${D1_DB_NAME}, 環境: ${ENV}"
           CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
           pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
-            --env=$ENV || echo "マイグレーション適用に失敗しました"
+            --env=$ENV --remote || echo "マイグレーション適用に失敗しました"
+
+          # マイグレーション後のテーブル確認
+          echo "マイグレーション後のテーブル一覧を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
+            --command="SELECT name FROM sqlite_master WHERE type='table'" \
+            --env=$ENV --remote || echo "テーブル一覧の取得に失敗しました"
 
           # 成功時のメッセージ
           echo "====================================="
@@ -177,44 +190,99 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
 
-      # KVストア初期化（必要に応じて）
+      # KVストア初期化
       - name: KVストア初期化
         run: |
           echo "KVストアを初期化しています（${{ env.ENV_NAME }}環境）..."
 
-          # アプリバージョンをKVに保存
+          # KV設定の確認
+          echo "KV_CACHE_ID: ${{ secrets.KV_CACHE_ID }}"
+          echo "KV_SESSION_STORE_ID: ${{ secrets.KV_SESSION_STORE_ID }}"
+
+          # 環境設定
           if [[ "${{ env.ENV_NAME }}" == "production" ]]; then
-            # 本番環境KV初期化 - アプリバージョン
-            pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+            echo "本番環境のKVストアを初期化しています..."
 
-            # キャッシュKVの初期化
-            echo "本番環境キャッシュKVの初期化中..."
-            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+            # アプリケーションバージョンをKVに保存
+            echo "アプリケーションバージョンをKVに保存: ${{ env.APP_VERSION }}"
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:key put --namespace-id=${{ secrets.KV_CACHE_ID }} \
+              APP_VERSION "${{ env.APP_VERSION }}" --remote
+
+            # キャッシュKVの初期化と確認
+            echo "キャッシュKVを初期化しています..."
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:namespace list --remote
+
+            # デプロイ時間を記録
+            echo "デプロイ時間を記録: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:key put --namespace-id=${{ secrets.KV_CACHE_ID }} \
+              DB_LAST_MIGRATED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --remote
 
             # セッションストアKVの初期化
-            echo "本番環境セッションストアKVの初期化中..."
-            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+            echo "セッションストアKVを初期化しています..."
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:namespace list --remote
 
-            # マイグレーション情報を記録
-            pnpm kv:prod:put DB_LAST_MIGRATED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            # 書き込まれた値の検証
+            echo "KVに書き込まれた値を検証しています..."
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:key get --namespace-id=${{ secrets.KV_CACHE_ID }} APP_VERSION --remote
+
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:key get --namespace-id=${{ secrets.KV_CACHE_ID }} DB_LAST_MIGRATED --remote
+
           else
-            # 開発環境KV初期化 - アプリバージョン
-            pnpm kv:dev:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+            echo "開発環境のKVストアを初期化しています..."
 
-            # キャッシュKVの初期化
-            echo "開発環境キャッシュKVの初期化中..."
-            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+            # アプリケーションバージョンをKVに保存
+            echo "アプリケーションバージョンをKVに保存: ${{ env.APP_VERSION }}"
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:key put --namespace-id=${{ secrets.KV_CACHE_ID }} \
+              APP_VERSION "${{ env.APP_VERSION }}" --remote
+
+            # キャッシュKVの初期化と確認
+            echo "キャッシュKVを初期化しています..."
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:namespace list --remote
+
+            # デプロイ時間を記録
+            echo "デプロイ時間を記録: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:key put --namespace-id=${{ secrets.KV_CACHE_ID }} \
+              DB_LAST_MIGRATED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --remote
 
             # セッションストアKVの初期化
-            echo "開発環境セッションストアKVの初期化中..."
-            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+            echo "セッションストアKVを初期化しています..."
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:namespace list --remote
 
-            # マイグレーション情報を記録
-            pnpm kv:dev:put DB_LAST_MIGRATED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            # 書き込まれた値の検証
+            echo "KVに書き込まれた値を検証しています..."
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:key get --namespace-id=${{ secrets.KV_CACHE_ID }} APP_VERSION --remote
+
+            CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+            pnpm exec wrangler kv:key get --namespace-id=${{ secrets.KV_CACHE_ID }} DB_LAST_MIGRATED --remote
           fi
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
           KV_CACHE_ID: ${{ secrets.KV_CACHE_ID }}
           KV_SESSION_STORE_ID: ${{ secrets.KV_SESSION_STORE_ID }}
 
@@ -285,3 +353,9 @@ jobs:
             環境: ${{ env.ENV_NAME }}
             データベース: ${{ vars.D1_DATABASE_NAME }}
             ステータス: ${{ job.status }}
+
+      # ブランチ確認
+      - name: ブランチ確認
+        run: |
+          echo "Current branch: ${GITHUB_REF}"
+          echo "Target environment: ${{ env.ENV_NAME }}"
