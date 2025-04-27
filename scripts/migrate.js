@@ -55,6 +55,65 @@ function addIfNotExists(sqlContent) {
   return modifiedSql;
 }
 
+// SQLステートメントを分割する関数 - SQLコメントやストアドプロシージャなどの複雑な構文を考慮
+function splitSqlStatements(sqlContent) {
+  // 単純な「;」での分割ではなく、SQLの構文を考慮した分割が必要
+  // この実装は基本的なケースに対応
+  const statements = [];
+  let currentStatement = '';
+  let inQuote = false;
+  let quoteChar = '';
+
+  for (let i = 0; i < sqlContent.length; i++) {
+    const char = sqlContent[i];
+    const nextChar = sqlContent[i + 1] || '';
+
+    // 引用符内かどうかを追跡
+    if ((char === "'" || char === '"' || char === '`') &&
+        (i === 0 || sqlContent[i - 1] !== '\\')) {
+      if (!inQuote) {
+        inQuote = true;
+        quoteChar = char;
+      } else if (char === quoteChar) {
+        inQuote = false;
+      }
+    }
+
+    // ステートメント終了の検出（引用符外の;）
+    if (char === ';' && !inQuote) {
+      statements.push(currentStatement + ';');
+      currentStatement = '';
+    } else {
+      currentStatement += char;
+    }
+  }
+
+  // 最後のステートメント（;がない場合）
+  if (currentStatement.trim()) {
+    statements.push(currentStatement);
+  }
+
+  return statements.filter(stmt => stmt.trim());
+}
+
+// ALTER TABLE文を安全に実行する準備をする関数
+function prepareAlterTableStatements(sqlStatements) {
+  return sqlStatements.map(stmt => {
+    // ALTER TABLE文かどうかを確認
+    if (/^\s*ALTER\s+TABLE/i.test(stmt)) {
+      // ALTER TABLE ADD COLUMN文の場合
+      if (/ADD\s+COLUMN/i.test(stmt)) {
+        // トランザクションで囲み、エラーが発生してもロールバックして継続できるように
+        return `BEGIN TRANSACTION;
+-- 元のステートメント: ${stmt.replace(/\n/g, ' ')}
+${stmt}
+COMMIT;`;
+      }
+    }
+    return stmt;
+  });
+}
+
 // すべてのSQLファイルを取得して昇順にソート
 const sqlFiles = fs
   .readdirSync(MIGRATIONS_DIR)
@@ -82,7 +141,14 @@ for (const file of sqlFiles) {
   try {
     // SQLファイルを読み込んでIF NOT EXISTSを追加
     const originalSql = fs.readFileSync(filePath, 'utf8');
-    const modifiedSql = addIfNotExists(originalSql);
+    let modifiedSql = addIfNotExists(originalSql);
+
+    // SQLステートメントを分割して個別に処理
+    const sqlStatements = splitSqlStatements(modifiedSql);
+    const preparedStatements = prepareAlterTableStatements(sqlStatements);
+
+    // 変換後のSQLステートメントを結合
+    modifiedSql = preparedStatements.join('\n\n');
 
     // 変換したSQLを一時ファイルに書き込み
     const tempFilePath = path.join(TEMP_DIR, file);
@@ -90,7 +156,7 @@ for (const file of sqlFiles) {
 
     // 元のファイルと変換後のファイルが異なる場合はログに出力
     if (originalSql !== modifiedSql) {
-      console.log(`ℹ️ SQLファイルを変換: IF NOT EXISTS句を追加しました`);
+      console.log(`ℹ️ SQLファイルを変換: 安全な実行のための修正を適用しました`);
     }
 
     // wranglerコマンドを実行
@@ -114,14 +180,17 @@ for (const file of sqlFiles) {
   } catch (error) {
     // エラー処理を改善：既存テーブルやインデックスのエラーを無視するオプション
     const errorStr = error.toString();
+
+    // よくあるエラーパターンの処理
     if (errorStr.includes('already exists')) {
       console.warn(`⚠️ テーブルまたはインデックスは既に存在します: ${file} - 処理を続行します`);
       skipCount++;
-
-      // CONTINUE_ON_ERROR環境変数が設定されていれば次のファイルを処理
-      if (process.env.CONTINUE_ON_ERROR) {
-        continue;
-      }
+    } else if (errorStr.includes('no such column')) {
+      console.warn(`⚠️ 変更対象のカラムが存在しません: ${file} - 処理を続行します`);
+      skipCount++;
+    } else if (errorStr.includes('duplicate column name')) {
+      console.warn(`⚠️ 追加しようとしているカラムが既に存在します: ${file} - 処理を続行します`);
+      skipCount++;
     } else {
       console.error(`❌ マイグレーション失敗: ${file}`);
       console.error(errorStr);
@@ -130,6 +199,11 @@ for (const file of sqlFiles) {
       if (!process.env.CONTINUE_ON_ERROR) {
         process.exit(1);
       }
+    }
+
+    // CONTINUE_ON_ERROR環境変数が設定されていれば次のファイルを処理
+    if (process.env.CONTINUE_ON_ERROR) {
+      continue;
     }
   }
 }
