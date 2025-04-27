@@ -27,20 +27,26 @@ if [ -z "$all_changed_files" ]; then
   exit 0
 fi
 
-# マイグレーションファイルの同期 (drizzleディレクトリに変更がある場合)
-if [ ! -z "$drizzle_files" ]; then
-  echo "🔄 SQLマイグレーションファイルの変更を検出しました。マイグレーションファイルを同期します..."
+# マイグレーションファイルの同期 - 常に実行
+echo "🔄 マイグレーションディレクトリを確認します..."
+if [ -d "drizzle" ] && [ -n "$(find drizzle -name "*.sql" 2>/dev/null)" ]; then
+  echo "🔄 マイグレーションファイルを同期します..."
   mkdir -p migrations
   pnpm db:sync-migrations
 
   if [ $? -eq 0 ]; then
     echo "✅ マイグレーションファイルの同期が完了しました"
-    # 同期したファイルを自動的にステージングに追加
-    git add migrations/*.sql
+    # 同期したファイルを自動的にステージングに追加（新規ファイルがある場合のみ）
+    if [ -n "$(find migrations -name "*.sql" -not -path "*/\.*" 2>/dev/null)" ]; then
+      echo "📥 新しいマイグレーションファイルをステージングに追加します"
+      git add migrations/*.sql
+    fi
   else
     echo "❌ マイグレーションファイルの同期に失敗しました"
     has_errors=1
   fi
+else
+  echo "📝 drizzleディレクトリにSQLファイルが見つかりません。マイグレーション同期をスキップします。"
 fi
 
 # テストスキップフラグをチェック
