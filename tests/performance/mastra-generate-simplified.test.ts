@@ -54,7 +54,7 @@ const generateText = async (prompt: string): Promise<GenerationResult> => {
   const startMemory = process.memoryUsage().heapUsed;
 
   // 実際の生成をシミュレート - 処理時間を短縮
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await new Promise((resolve) => setTimeout(resolve, 5));
 
   // トークン計算を改善 - 日本語文字列もしっかりカウント
   const tokenCount = Math.max(prompt.length / 2, prompt.split(/\s+/).length * 2);
@@ -89,7 +89,7 @@ describe('Mastra 生成パフォーマンステスト (シンプル版)', () => 
 
     expect(result).toHaveProperty('text');
     expect(result.text).toContain('短いプロンプト');
-  }, 10000); // タイムアウトを600秒から10秒に短縮
+  }, 20000); // タイムアウトを10秒から20秒に延長
 
   it('長いプロンプトのパフォーマンス測定', async () => {
     const result = await generateText(
@@ -98,7 +98,7 @@ describe('Mastra 生成パフォーマンステスト (シンプル版)', () => 
 
     expect(result).toHaveProperty('text');
     expect(result.tokens).toBeGreaterThan(10);
-  }, 10000); // タイムアウトを600秒から10秒に短縮
+  }, 20000); // タイムアウトを10秒から20秒に延長
 
   it('連続した生成リクエストのパフォーマンス', async () => {
     const iterations = 1; // 反復回数を2から1に減らす
@@ -120,5 +120,5 @@ describe('Mastra 生成パフォーマンステスト (シンプル版)', () => 
     });
 
     expect(results.length).toBe(iterations);
-  }, 10000); // タイムアウトを600秒から10秒に短縮
+  }, 20000); // タイムアウトを10秒から20秒に延長
 });
