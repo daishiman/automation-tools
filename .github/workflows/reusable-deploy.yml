@@ -227,6 +227,7 @@ jobs:
           CF_PAGES_DEBUG: true # デバッグログを有効化
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          NODE_OPTIONS: '--max_old_space_size=4096'
 
       # デプロイエラーのハンドリング
       - name: デプロイエラーのチェック
