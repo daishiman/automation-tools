@@ -148,9 +148,12 @@ jobs:
             });
 
 # 使用している環境変数:
-# - CF_ACCOUNT_ID/CLOUDFLARE_ACCOUNT_ID: Cloudflareアカウント識別子
-# - CF_API_TOKEN: Cloudflare API認証トークン
+# - CLOUDFLARE_ACCOUNT_ID: Cloudflareアカウント識別子
+# - CLOUDFLARE_API_TOKEN: Cloudflare API認証トークン
 # - D1_DATABASE_ID: D1データベースID (production/development)
 # - KV_CACHE_ID: KVキャッシュID (production/development)
 # - KV_NAMESPACE_ID: KV名前空間ID (production/development)
 # - KV_SESSION_STORE_ID: セッション管理用KV ID (production/development)
+# 必要な環境変数:
+# - NODE_ENV: 実行環境（development/production）
+# - NEXT_PUBLIC_ENV: フロントエンド表示用環境変数

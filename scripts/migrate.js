@@ -17,6 +17,10 @@ if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
+// 環境変数の設定
+const CLOUDFLARE_API_TOKEN = process.env.CLOUDFLARE_API_TOKEN || process.env.CF_API_TOKEN;
+const CLOUDFLARE_ACCOUNT_ID = process.env.CLOUDFLARE_ACCOUNT_ID || process.env.CF_ACCOUNT_ID;
+
 // 環境に基づいてデータベース名とconfigファイルを決定
 const ENV = process.env.ENVIRONMENT || 'local';
 let DB_NAME;
@@ -69,8 +73,7 @@ function splitSqlStatements(sqlContent) {
     const nextChar = sqlContent[i + 1] || '';
 
     // 引用符内かどうかを追跡
-    if ((char === "'" || char === '"' || char === '`') &&
-        (i === 0 || sqlContent[i - 1] !== '\\')) {
+    if ((char === "'" || char === '"' || char === '`') && (i === 0 || sqlContent[i - 1] !== '\\')) {
       if (!inQuote) {
         inQuote = true;
         quoteChar = char;
@@ -93,12 +96,12 @@ function splitSqlStatements(sqlContent) {
     statements.push(currentStatement);
   }
 
-  return statements.filter(stmt => stmt.trim());
+  return statements.filter((stmt) => stmt.trim());
 }
 
 // ALTER TABLE文を安全に実行する準備をする関数
 function prepareAlterTableStatements(sqlStatements) {
-  return sqlStatements.map(stmt => {
+  return sqlStatements.map((stmt) => {
     // ALTER TABLE文かどうかを確認
     if (/^\s*ALTER\s+TABLE/i.test(stmt)) {
       // ALTER TABLE ADD COLUMN文の場合
@@ -167,8 +170,8 @@ for (const file of sqlFiles) {
     if (ENV === 'local') {
       command += ' --local';
     } else if (ENV === 'preview' || ENV === 'production') {
-      // 特定の環境フラグを追加
-      command += ` --env=${ENV}`;
+      // 特定の環境フラグとリモートフラグを追加
+      command += ` --env=${ENV} --remote`;
     }
 
     console.log(`実行コマンド: ${command}`);

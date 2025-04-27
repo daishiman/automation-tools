@@ -96,6 +96,62 @@ jobs:
           echo "response_time=$(curl -s -w "%{time_total}" -o /dev/null $TARGET_URL)" >> $GITHUB_OUTPUT
           echo "status_code=$STATUS_CODE" >> $GITHUB_OUTPUT
 
+      # アプリケーションバージョン検証
+      - name: KVストアのバージョン検証
+        id: version-verification
+        run: |
+          echo "KVストアのバージョン情報を検証しています..."
+
+          # package.jsonからバージョンを取得
+          EXPECTED_VERSION=$(node -p "require('./package.json').version")
+          echo "期待するアプリケーションバージョン: $EXPECTED_VERSION"
+
+          # KVからバージョンを取得 (最大3回リトライ)
+          for i in $(seq 1 $MAX_RETRIES); do
+            echo "KVバージョン検証試行: $i/$MAX_RETRIES"
+
+            # KVからアプリバージョンを取得
+            KV_VERSION=$(CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
+              CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
+              pnpm exec wrangler kv:key get --namespace-id=${{ secrets.KV_CACHE_ID }} \
+              APP_VERSION --remote || echo "")
+
+            if [ -z "$KV_VERSION" ]; then
+              echo "⚠️ KVからバージョン情報を取得できませんでした"
+              if [ "$i" -lt "$MAX_RETRIES" ]; then
+                echo "再試行します（$RETRY_INTERVAL秒後）..."
+                sleep $RETRY_INTERVAL
+                continue
+              else
+                echo "❌ KVバージョン検証をスキップします"
+                echo "kv_version_found=false" >> $GITHUB_OUTPUT
+                echo "kv_version=" >> $GITHUB_OUTPUT
+                echo "version_match=false" >> $GITHUB_OUTPUT
+                break
+              fi
+            fi
+
+            echo "KVに保存されているバージョン: $KV_VERSION"
+
+            # バージョン比較
+            if [ "$KV_VERSION" = "$EXPECTED_VERSION" ]; then
+              echo "✅ バージョン一致: $KV_VERSION"
+              echo "kv_version_found=true" >> $GITHUB_OUTPUT
+              echo "kv_version=$KV_VERSION" >> $GITHUB_OUTPUT
+              echo "version_match=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ バージョン不一致: KV=$KV_VERSION, 期待=$EXPECTED_VERSION"
+              echo "kv_version_found=true" >> $GITHUB_OUTPUT
+              echo "kv_version=$KV_VERSION" >> $GITHUB_OUTPUT
+              echo "version_match=false" >> $GITHUB_OUTPUT
+            fi
+
+            break
+          done
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
       # パフォーマンス検証
       - name: パフォーマンス検証
         id: performance-check
@@ -192,6 +248,18 @@ jobs:
           fi
           echo "" >> $GITHUB_WORKSPACE/summary.md
 
+          echo "### バージョン検証" >> $GITHUB_WORKSPACE/summary.md
+          if [ "${{ steps.version-verification.outputs.kv_version_found }}" == "true" ]; then
+            if [ "${{ steps.version-verification.outputs.version_match }}" == "true" ]; then
+              echo "✅ KVバージョン: ${{ steps.version-verification.outputs.kv_version }}" >> $GITHUB_WORKSPACE/summary.md
+            else
+              echo "⚠️ バージョン不一致: KV=${{ steps.version-verification.outputs.kv_version }}, package.json=$(node -p "require('./package.json').version")" >> $GITHUB_WORKSPACE/summary.md
+            fi
+          else
+            echo "⚠️ KVバージョン情報を取得できませんでした" >> $GITHUB_WORKSPACE/summary.md
+          fi
+          echo "" >> $GITHUB_WORKSPACE/summary.md
+
           echo "### パフォーマンス検証" >> $GITHUB_WORKSPACE/summary.md
           echo "- 初回バイト到達時間: ${{ steps.performance-check.outputs.ttfb }}秒" >> $GITHUB_WORKSPACE/summary.md
           echo "- 合計読み込み時間: ${{ steps.performance-check.outputs.total_load_time }}秒" >> $GITHUB_WORKSPACE/summary.md
@@ -210,6 +278,8 @@ jobs:
           if [ "${{ steps.basic-verification.outcome }}" != "success" ]; then
             echo "verification_result=failure" >> $GITHUB_OUTPUT
           elif [ "${{ steps.e2e-tests.outputs.test_success }}" != "true" ]; then
+            echo "verification_result=warning" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.version-verification.outputs.version_match }}" == "false" ]; then
             echo "verification_result=warning" >> $GITHUB_OUTPUT
           else
             echo "verification_result=success" >> $GITHUB_OUTPUT

@@ -137,8 +137,8 @@ jobs:
 
   # ステップ3: 本番環境向けデプロイ（プッシュまたは手動実行時のみ）
   # 注意: reusable-deploy.ymlワークフローでは以下のシークレットが必要です
-  # - CF_API_TOKEN: Cloudflare API トークン
-  # - CF_ACCOUNT_ID: Cloudflare アカウントID
+  # - CLOUDFLARE_API_TOKEN: Cloudflare API トークン
+  # - CLOUDFLARE_ACCOUNT_ID: Cloudflare アカウントID
   # - SLACK_WEBHOOK: Slack通知用のWebhook URL（オプション）
   # 本番環境では strict_validation=true で厳格な検証を行います
   deploy-production:
@@ -155,8 +155,8 @@ jobs:
       strict_validation: true
       send_notification: true
     secrets:
-      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
 
   # デプロイ完了通知（承認スキップ時のみ追加通知）

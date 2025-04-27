@@ -1006,8 +1006,8 @@ NEXT_PUBLIC_API_URL=http://localhost:3000/api
 NEXT_PUBLIC_APP_ENV=development
 
 # Cloudflare設定
-CF_ACCOUNT_ID=your-account-id-here
-CF_API_TOKEN=your-api-token-here
+CLOUDFLARE_ACCOUNT_ID=your-account-id-here
+CLOUDFLARE_API_TOKEN=your-api-token-here
 
 # データベース設定
 D1_DATABASE_ID=your-d1-database-id-here

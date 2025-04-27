@@ -230,8 +230,8 @@ jobs:
       send_notification: true
       strict_validation: false
     secrets:
-      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
 
   # PRのプレビュー環境へのデプロイ
@@ -253,8 +253,8 @@ jobs:
       send_notification: false
       strict_validation: false
     secrets:
-      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
-      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
 
   # プレビューデプロイURLをPRにコメント
