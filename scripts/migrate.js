@@ -47,6 +47,10 @@ if (sqlFiles.length === 0) {
 console.log(`🔍 ${sqlFiles.length}個のマイグレーションファイルを実行します...`);
 
 // 各マイグレーションファイルを実行
+let successCount = 0;
+let skipCount = 0;
+let errorCount = 0;
+
 for (const file of sqlFiles) {
   const filePath = path.join(MIGRATIONS_DIR, file);
   console.log(`⚙️ マイグレーションを実行中: ${file}`);
@@ -69,16 +73,32 @@ for (const file of sqlFiles) {
       stdio: 'inherit',
     });
     console.log(`✅ マイグレーション成功: ${file}`);
+    successCount++;
   } catch (error) {
     // エラー処理を改善：既存テーブルのエラーを無視するオプション
-    if (error.message && error.message.includes('already exists')) {
+    if (error.toString().includes('already exists')) {
       console.warn(`⚠️ テーブルは既に存在します: ${file} - 処理を続行します`);
+      skipCount++;
     } else {
       console.error(`❌ マイグレーション失敗: ${file}`);
-      console.error(error.message);
-      process.exit(1);
+      console.error(error.toString());
+      errorCount++;
+      // 重大なエラーの場合のみ中断する
+      if (!process.env.CONTINUE_ON_ERROR) {
+        process.exit(1);
+      }
     }
   }
 }
 
-console.log('🎉 すべてのマイグレーションが正常に実行されました！');
+console.log('📊 マイグレーション結果:');
+console.log(`✅ 成功: ${successCount}個`);
+console.log(`⚠️ スキップ: ${skipCount}個`);
+console.log(`❌ エラー: ${errorCount}個`);
+
+if (errorCount === 0) {
+  console.log('🎉 すべてのマイグレーションが正常に実行またはスキップされました！');
+} else {
+  console.error('⚠️ 一部のマイグレーションでエラーが発生しました。ログを確認してください。');
+  process.exit(1);
+}
