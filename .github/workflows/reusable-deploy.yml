@@ -257,6 +257,8 @@ jobs:
           command: pages deploy out --project-name automationa-tools --branch ${{ inputs.branch_name }} --commit-dirty true
           wranglerVersion: '4.13.2'
           workingDirectory: .
+          preCommands: |
+            npm config set legacy-peer-deps true
         env:
           CF_PAGES_DEBUG: true # デバッグログを有効化
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
