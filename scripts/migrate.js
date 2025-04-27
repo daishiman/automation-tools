@@ -10,8 +10,22 @@ const __dirname = path.dirname(__filename);
 // マイグレーションディレクトリのパス
 const MIGRATIONS_DIR = path.resolve(__dirname, '../drizzle');
 
-// データベース名
-const DB_NAME = 'automationa-tools-db';
+// 環境に基づいてデータベース名を決定
+const ENV = process.env.ENVIRONMENT || 'local';
+let DB_NAME;
+
+switch (ENV) {
+  case 'production':
+    DB_NAME = 'automationa-tools-prod-db';
+    break;
+  case 'preview':
+    DB_NAME = 'automationa-tools-dev-db';
+    break;
+  default:
+    DB_NAME = 'automationa-tools-local-db';
+}
+
+console.log(`🔍 環境: ${ENV}, データベース: ${DB_NAME}`);
 
 // すべてのSQLファイルを取得して昇順にソート
 const sqlFiles = fs
@@ -35,7 +49,18 @@ for (const file of sqlFiles) {
 
   try {
     // wranglerコマンドを実行
-    execSync(`pnpm wrangler d1 execute ${DB_NAME} --file=${filePath}`, {
+    // 環境に応じたコマンドオプションを追加
+    let command = `pnpm wrangler d1 execute ${DB_NAME} --file=${filePath}`;
+
+    // ローカル環境の場合は--localフラグを追加
+    if (ENV === 'local') {
+      command += ' --local';
+    } else if (ENV === 'preview' || ENV === 'production') {
+      // 特定の環境フラグを追加
+      command += ` --env=${ENV}`;
+    }
+
+    execSync(command, {
       stdio: 'inherit',
     });
     console.log(`✅ マイグレーション成功: ${file}`);
