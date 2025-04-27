@@ -349,62 +349,70 @@ jobs:
           D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
 
       # KVストアの初期化（必要に応じて）
-      - name: KVストア初期化
-        if: success()
+      - name: 開発環境KVストア初期化
+        if: env.ENV_NAME == 'development'
         run: |
-          echo "KVストアを初期化しています（${{ inputs.environment }}環境）..."
+          echo "開発環境のKVストアを初期化しています..."
 
-          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
-            # 開発環境KV初期化 - アプリバージョン
+          # アプリケーションバージョンをKVに保存
+          echo "アプリケーションバージョンをKVに保存: ${{ env.APP_VERSION }}"
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm kv:dev:put APP_VERSION "$(node -p "require('./package.json').version")" --remote || echo "KV初期化スキップ"
+          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_DEV --remote || echo "KV初期化スキップ"
 
-            # キャッシュKVの初期化
-            echo "開発環境キャッシュKVの初期化中..."
-            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
-            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
-
-            # セッションストアKVの初期化
-            echo "開発環境セッションストアKVの初期化中..."
-            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
-            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
-
-            # デプロイ日時を記録
-            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
-            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm kv:dev:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --remote
-
-          else
-            # 本番環境KV初期化 - アプリバージョン
-            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
-            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")" --remote || echo "KV初期化スキップ"
-
-            # キャッシュKVの初期化
-            echo "本番環境キャッシュKVの初期化中..."
+          # KVキャッシュの確認
+          echo "KVキャッシュの確認..."
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
             pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
 
-            # セッションストアKVの初期化
-            echo "本番環境セッションストアKVの初期化中..."
+          # KVセッションストアの確認
+          echo "KVセッションストアの確認..."
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
             pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
 
-            # デプロイ日時を記録
+          # デプロイ時間を記録
+          echo "デプロイ時間を記録: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm kv:prod:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --remote
-          fi
+          pnpm exec wrangler kv key put "LAST_DEPLOYED" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --binding=CACHE_DEV --remote
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          KV_CACHE_ID: ${{ secrets.KV_CACHE_ID }}
-          KV_SESSION_STORE_ID: ${{ secrets.KV_SESSION_STORE_ID }}
+          WRANGLER_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      # KVストアの初期化（必要に応じて）
+      - name: 本番環境KVストア初期化
+        if: env.ENV_NAME == 'production'
+        run: |
+          echo "本番環境のKVストアを初期化しています..."
+
+          # アプリケーションバージョンをKVに保存
+          echo "アプリケーションバージョンをKVに保存: ${{ env.APP_VERSION }}"
+            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
+          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_PROD --remote || echo "KV初期化スキップ"
+
+          # KVキャッシュの確認
+          echo "KVキャッシュの確認..."
+            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
+            pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+          # KVセッションストアの確認
+          echo "KVセッションストアの確認..."
+            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
+            pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+          # デプロイ時間を記録
+          echo "デプロイ時間を記録: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+            CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
+            CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
+          pnpm exec wrangler kv key put "LAST_DEPLOYED" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --binding=CACHE_PROD --remote
+        env:
+          WRANGLER_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       # R2バケットの初期化（必要に応じて）
       - name: R2バケット初期化
