@@ -41,10 +41,18 @@ console.log(`🔍 環境: ${ENV}, データベース: ${DB_NAME}, 設定ファ�
 // SQLファイルを変換してIF NOT EXISTSを追加する関数
 function addIfNotExists(sqlContent) {
   // CREATE TABLE文を検出して変換
-  return sqlContent.replace(
+  let modifiedSql = sqlContent.replace(
     /CREATE\s+TABLE\s+(?!IF NOT EXISTS)(`[^`]+`|[^\s(]+)/gi,
     'CREATE TABLE IF NOT EXISTS $1'
   );
+
+  // CREATE INDEX文も変換
+  modifiedSql = modifiedSql.replace(
+    /CREATE\s+(UNIQUE\s+)?INDEX\s+(?!IF NOT EXISTS)(`[^`]+`|[^\s(]+)/gi,
+    'CREATE $1INDEX IF NOT EXISTS $2'
+  );
+
+  return modifiedSql;
 }
 
 // すべてのSQLファイルを取得して昇順にソート
@@ -82,7 +90,7 @@ for (const file of sqlFiles) {
 
     // 元のファイルと変換後のファイルが異なる場合はログに出力
     if (originalSql !== modifiedSql) {
-      console.log(`ℹ️ SQLファイルを変換: CREATE TABLE → CREATE TABLE IF NOT EXISTS`);
+      console.log(`ℹ️ SQLファイルを変換: IF NOT EXISTS句を追加しました`);
     }
 
     // wranglerコマンドを実行
@@ -104,13 +112,19 @@ for (const file of sqlFiles) {
     console.log(`✅ マイグレーション成功: ${file}`);
     successCount++;
   } catch (error) {
-    // エラー処理を改善：既存テーブルのエラーを無視するオプション
-    if (error.toString().includes('already exists')) {
-      console.warn(`⚠️ テーブルは既に存在します: ${file} - 処理を続行します`);
+    // エラー処理を改善：既存テーブルやインデックスのエラーを無視するオプション
+    const errorStr = error.toString();
+    if (errorStr.includes('already exists')) {
+      console.warn(`⚠️ テーブルまたはインデックスは既に存在します: ${file} - 処理を続行します`);
       skipCount++;
+
+      // CONTINUE_ON_ERROR環境変数が設定されていれば次のファイルを処理
+      if (process.env.CONTINUE_ON_ERROR) {
+        continue;
+      }
     } else {
       console.error(`❌ マイグレーション失敗: ${file}`);
-      console.error(error.toString());
+      console.error(errorStr);
       errorCount++;
       // 重大なエラーの場合のみ中断する
       if (!process.env.CONTINUE_ON_ERROR) {
@@ -135,7 +149,8 @@ console.log(`❌ エラー: ${errorCount}個`);
 
 if (errorCount === 0) {
   console.log('🎉 すべてのマイグレーションが正常に実行またはスキップされました！');
+  process.exit(0); // 正常終了
 } else {
   console.error('⚠️ 一部のマイグレーションでエラーが発生しました。ログを確認してください。');
-  process.exit(1);
+  process.exit(1); // エラー終了
 }
