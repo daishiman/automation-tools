@@ -31,7 +31,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,md,mdx,css,json}\"",
     "type-check": "tsc --pretty --noEmit",
     "typecheck": "tsc --pretty --noEmit",
-    "db:generate": "drizzle-kit generate:sqlite",
+    "db:generate": "drizzle-kit generate",
     "db:migrate": "node -r dotenv/config scripts/migrate.js",
     "db:studio": "drizzle-kit studio",
     "cf:local": "node -r dotenv/config scripts/wrangler-helper.js --mode=dev --env=local",
@@ -99,7 +99,11 @@
     "gh:actions:full:env": "GITHUB_TOKEN=$GITHUB_TOKEN GITHUB_OWNER=$GITHUB_OWNER GITHUB_REPO=$GITHUB_REPO pnpm gh:actions:fetch:all && pnpm gh:actions:report all-workflow-results.json",
     "gh:actions:full:with-logs": "DOWNLOAD_LOGS=true pnpm gh:actions:fetch:all && pnpm gh:actions:report all-workflow-results.json",
     "gh:actions:failed-report": "pnpm gh:actions:fetch:failed:with-logs && pnpm gh:actions:report workflow-158216561-results.json",
-    "gh:actions:test:full": "pnpm gh:actions:fetch:test && pnpm gh:actions:report test-workflow-results.json"
+    "gh:actions:test:full": "pnpm gh:actions:fetch:test && pnpm gh:actions:report test-workflow-results.json",
+    "db:sync-migrations": "cp -r ./drizzle/*.sql ./migrations/",
+    "db:full-migrate:dev": "pnpm db:generate && pnpm db:sync-migrations && pnpm db:dev:migrate",
+    "db:full-migrate:prod": "pnpm db:generate && pnpm db:sync-migrations && pnpm db:prod:migrate",
+    "db:full-migrate": "pnpm db:generate && pnpm db:sync-migrations"
   },
   "keywords": [],
   "author": "",
