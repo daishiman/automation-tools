@@ -86,3 +86,6 @@ github-actions-reports/
 # tsconfig.json
 # wrangler.toml
 # .env.example
+
+# テスト結果
+junit.xml
