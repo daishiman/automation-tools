@@ -2,6 +2,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import os from 'os';
 
 // ESモジュールで__dirnameを取得するための設定
 const __filename = fileURLToPath(import.meta.url);
@@ -9,6 +10,12 @@ const __dirname = path.dirname(__filename);
 
 // マイグレーションディレクトリのパス
 const MIGRATIONS_DIR = path.resolve(__dirname, '../drizzle');
+const TEMP_DIR = path.resolve(os.tmpdir(), 'automationa-tools-migrations');
+
+// 一時ディレクトリを作成
+if (!fs.existsSync(TEMP_DIR)) {
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
+}
 
 // 環境に基づいてデータベース名とconfigファイルを決定
 const ENV = process.env.ENVIRONMENT || 'local';
@@ -30,6 +37,15 @@ switch (ENV) {
 }
 
 console.log(`🔍 環境: ${ENV}, データベース: ${DB_NAME}, 設定ファイル: ${CONFIG_FILE}`);
+
+// SQLファイルを変換してIF NOT EXISTSを追加する関数
+function addIfNotExists(sqlContent) {
+  // CREATE TABLE文を検出して変換
+  return sqlContent.replace(
+    /CREATE\s+TABLE\s+(?!IF NOT EXISTS)(`[^`]+`|[^\s(]+)/gi,
+    'CREATE TABLE IF NOT EXISTS $1'
+  );
+}
 
 // すべてのSQLファイルを取得して昇順にソート
 const sqlFiles = fs
@@ -56,9 +72,22 @@ for (const file of sqlFiles) {
   console.log(`⚙️ マイグレーションを実行中: ${file}`);
 
   try {
+    // SQLファイルを読み込んでIF NOT EXISTSを追加
+    const originalSql = fs.readFileSync(filePath, 'utf8');
+    const modifiedSql = addIfNotExists(originalSql);
+
+    // 変換したSQLを一時ファイルに書き込み
+    const tempFilePath = path.join(TEMP_DIR, file);
+    fs.writeFileSync(tempFilePath, modifiedSql, 'utf8');
+
+    // 元のファイルと変換後のファイルが異なる場合はログに出力
+    if (originalSql !== modifiedSql) {
+      console.log(`ℹ️ SQLファイルを変換: CREATE TABLE → CREATE TABLE IF NOT EXISTS`);
+    }
+
     // wranglerコマンドを実行
     // 環境に応じたコマンドオプションを追加
-    let command = `pnpm wrangler d1 execute ${DB_NAME} --file=${filePath} --config=${CONFIG_FILE}`;
+    let command = `pnpm wrangler d1 execute ${DB_NAME} --file=${tempFilePath} --config=${CONFIG_FILE}`;
 
     // ローカル環境の場合は--localフラグを追加
     if (ENV === 'local') {
@@ -89,6 +118,14 @@ for (const file of sqlFiles) {
       }
     }
   }
+}
+
+// 一時ディレクトリのクリーンアップ
+try {
+  fs.rmSync(TEMP_DIR, { recursive: true, force: true });
+  console.log(`🧹 一時ファイルを削除しました: ${TEMP_DIR}`);
+} catch (error) {
+  console.warn(`⚠️ 一時ファイルの削除に失敗しました: ${error.message}`);
 }
 
 console.log('📊 マイグレーション結果:');
