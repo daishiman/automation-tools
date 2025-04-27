@@ -219,7 +219,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy out --project-name=automationa-tools --branch=${{ inputs.branch_name }} --commit-dirty=true
+          command: pages deploy out --project-name automationa-tools --branch ${{ inputs.branch_name }} --commit-dirty true
           packageManager: pnpm
           wranglerVersion: '4.13.2'
           workingDirectory: .
@@ -264,7 +264,7 @@ jobs:
           echo "Cloudflareプロジェクト一覧の取得を試行中..."
           CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler pages project list --remote || echo "プロジェクト一覧の取得に失敗しました"
+          pnpm exec wrangler pages project list || echo "プロジェクト一覧の取得に失敗しました"
 
           exit 1
 
@@ -320,14 +320,14 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
           pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
             --command="SELECT name FROM sqlite_master WHERE type='table'" \
-            --env=$ENV --remote || echo "テーブル一覧の取得に失敗しましたが続行します"
+            --env=$ENV || echo "テーブル一覧の取得に失敗しましたが続行します"
 
           # マイグレーションファイルの状態確認
           echo "マイグレーションファイルの状態を確認しています..."
           CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
           pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
-            --env=$ENV --remote || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+            --env=$ENV || echo "マイグレーション一覧の取得に失敗しましたが続行します"
 
           # マイグレーション実行
           echo "マイグレーションを適用しています..."
@@ -335,7 +335,7 @@ jobs:
           CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
           pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
-            --env=$ENV --remote || echo "マイグレーション適用に失敗しました"
+            --env=$ENV || echo "マイグレーション適用に失敗しました"
 
           # 成功時のメッセージ
           echo "====================================="
@@ -358,25 +358,25 @@ jobs:
           echo "アプリケーションバージョンをKVに保存: ${{ env.APP_VERSION }}"
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_DEV --remote || echo "KV初期化スキップ"
+          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_DEV || echo "KV初期化スキップ"
 
           # KVキャッシュの確認
           echo "KVキャッシュの確認..."
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
 
           # KVセッションストアの確認
           echo "KVセッションストアの確認..."
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
 
           # デプロイ時間を記録
           echo "デプロイ時間を記録: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler kv key put "LAST_DEPLOYED" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --binding=CACHE_DEV --remote
+          pnpm exec wrangler kv key put "LAST_DEPLOYED" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --binding=CACHE_DEV
         env:
           WRANGLER_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           WRANGLER_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -391,25 +391,25 @@ jobs:
           echo "アプリケーションバージョンをKVに保存: ${{ env.APP_VERSION }}"
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_PROD --remote || echo "KV初期化スキップ"
+          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_PROD || echo "KV初期化スキップ"
 
           # KVキャッシュの確認
           echo "KVキャッシュの確認..."
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
 
           # KVセッションストアの確認
           echo "KVセッションストアの確認..."
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm exec wrangler kv namespace list --remote | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
 
           # デプロイ時間を記録
           echo "デプロイ時間を記録: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler kv key put "LAST_DEPLOYED" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --binding=CACHE_PROD --remote
+          pnpm exec wrangler kv key put "LAST_DEPLOYED" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --binding=CACHE_PROD
         env:
           WRANGLER_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           WRANGLER_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -426,7 +426,7 @@ jobs:
             # EPIPEエラー対策のためファイルにリダイレクト
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm exec wrangler r2 bucket list --remote > /tmp/r2-buckets.txt || echo "R2バケット一覧取得失敗"
+            pnpm exec wrangler r2 bucket list > /tmp/r2-buckets.txt || echo "R2バケット一覧取得失敗"
             cat /tmp/r2-buckets.txt | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
 
             # バックアップバケット確認
@@ -452,7 +452,7 @@ jobs:
             # EPIPEエラー対策のためファイルにリダイレクト
             CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
             CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-            pnpm exec wrangler r2 bucket list --remote > /tmp/r2-buckets-prod.txt || echo "R2バケット一覧取得失敗"
+            pnpm exec wrangler r2 bucket list > /tmp/r2-buckets-prod.txt || echo "R2バケット一覧取得失敗"
             cat /tmp/r2-buckets-prod.txt | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
 
             # バックアップバケット確認

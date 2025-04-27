@@ -271,7 +271,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy out --project-name=automationa-tools --branch=main --commit-dirty=true
+          command: pages deploy out --project-name automationa-tools --branch main --commit-dirty true
           packageManager: pnpm
           wranglerVersion: '4.13.2'
           workingDirectory: .
@@ -404,7 +404,7 @@ jobs:
           echo "アプリケーションバージョンをKVに保存: ${{ env.APP_VERSION }}"
           CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_PROD --remote
+          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_PROD
 
       # 結果通知
       - name: マイグレーション結果通知
