@@ -43,11 +43,11 @@ id = "${KV_SESSION_STORE_ID}"  # GitHub ActionsではGitHub Secretsから設定
 # R2バケット設定（プロダクション）
 [[env.production.r2_buckets]]
 binding = "ASSETS"  # 本番環境アセットストレージ
-bucket_name = "${R2_ASSETS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
+bucket_name = "automationa-tools-storage"  # R2バケット名を直接指定
 
 [[env.production.r2_buckets]]
 binding = "BACKUPS"  # 本番環境バックアップストレージ
-bucket_name = "${R2_BACKUPS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
+bucket_name = "automationa-tools-backup"  # R2バケット名を直接指定
 
 # ===========================================================
 # 開発環境（preview）設定
@@ -81,11 +81,11 @@ id = "${KV_SESSION_STORE_ID}"  # GitHub ActionsではGitHub Secretsから設定
 # R2バケット設定（プレビュー）
 [[env.preview.r2_buckets]]
 binding = "ASSETS"  # 開発環境アセットストレージ
-bucket_name = "${R2_ASSETS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
+bucket_name = "dev-automationa-tools-storage"  # R2バケット名を直接指定
 
 [[env.preview.r2_buckets]]
 binding = "BACKUPS"  # 開発環境バックアップストレージ
-bucket_name = "${R2_BACKUPS_BUCKET_NAME}"  # GitHub ActionsではGitHub Varsから設定
+bucket_name = "dev-automationa-tools-backup"  # R2バケット名を直接指定
 
 # .envファイルは、各環境に対応する env_path で自動的に読み込まれます：
 # - production: .env.production (pnpm exec wrangler pages deploy --env=production)
