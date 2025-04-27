@@ -34,6 +34,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node -r dotenv/config scripts/migrate.js",
     "db:studio": "drizzle-kit studio",
+    "db:backup": "node -r dotenv/config scripts/backup.js",
     "cf:local": "node -r dotenv/config scripts/wrangler-helper.js --mode=dev --env=local",
     "cf:preview": "node -r dotenv/config scripts/wrangler-helper.js --mode=dev --env=preview",
     "cf:prod": "node -r dotenv/config scripts/wrangler-helper.js --mode=dev --env=production",
