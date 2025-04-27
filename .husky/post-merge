@@ -20,7 +20,7 @@ if echo "$changed_files" | grep -q "package.json\|pnpm-lock.yaml"; then
 fi
 
 # マイグレーションファイルの変更を検出
-if echo "$changed_files" | grep -q "migrations\|schema.sql\|db/schema"; then
+if echo "$changed_files" | grep -q "migrations\|schema.sql\|db/schema\|migrate.js\|database-migration"; then
   echo "💾 データベーススキーマの変更を検出しました"
 
   # package.jsonでマイグレーションコマンドを確認
@@ -94,8 +94,8 @@ echo ""
 echo "対応が必要な可能性のあるアクション:"
 [ "$test_result" -ne 0 ] && echo "- テスト失敗の修正"
 echo "$changed_files" | grep -q "package.json" && echo "- 新しい依存関係の確認"
-echo "$changed_files" | grep -q "migrations" && echo "- データベースマイグレーションの確認"
-echo "$changed_files" | grep -q ".env.example" && echo "- 環境変数の更新"
+echo "$changed_files" | grep -q "migrations\|schema.sql\|db/schema\|migrate.js\|database-migration" && echo "- データベースマイグレーションの確認"
+echo "$changed_files" | grep -q ".env.example\|.env.template" && echo "- 環境変数の更新"
 
 echo "✅ マージ後の処理が完了しました！"
 exit 0
