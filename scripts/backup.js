@@ -71,7 +71,7 @@ try {
   const envFlag = ENVIRONMENT === 'production' ? '--env=production' : '--env=preview';
 
   // wranglerコマンドを実行してデータベースをエクスポート
-  execSync(`pnpm exec wrangler d1 backup ${dbName} ${envFlag} > ${backupFilePath}`, {
+  execSync(`pnpm exec wrangler d1 export ${dbName} ${envFlag} > ${backupFilePath}`, {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
