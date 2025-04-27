@@ -42,15 +42,17 @@ fi
 
 # テストフレームワークの検出
 echo "🧪 テストを実行中..."
+# 非対話モードを強制するためのCI環境変数を設定
+export CI=true
 if grep -q "\"test:all\"" package.json; then
-  pnpm test:all
+  pnpm test:all --run
   test_result=$?
 elif grep -q "\"test:integration\"" package.json; then
-  pnpm test:integration
+  pnpm test:integration --run
   test_result=$?
 else
-  # デフォルトのテストコマンド
-  pnpm test
+  # デフォルトのテストコマンド - 非対話モードで実行するためのフラグを追加
+  pnpm test --run
   test_result=$?
 fi
 
