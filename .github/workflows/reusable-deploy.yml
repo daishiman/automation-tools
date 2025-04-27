@@ -74,6 +74,19 @@ jobs:
           echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
           mkdir -p ./.pnpm-store
 
+      # pnpmキャッシュ問題対応強化
+      - name: PNPMキャッシュリセット
+        run: |
+          rm -rf node_modules
+          pnpm store prune
+          pnpm config set store-dir ./.pnpm-store
+
+      # メモリ設定を明示的に環境変数に設定
+      - name: 環境変数設定
+        run: |
+          echo "NODE_OPTIONS=--max_old_space_size=8192" >> $GITHUB_ENV
+          echo "PNPM_FLAGS=--no-frozen-lockfile" >> $GITHUB_ENV
+
       # ビルドキャッシュの活用
       - name: Next.jsキャッシュのセットアップ
         uses: actions/cache@v4
@@ -84,10 +97,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ inputs.environment }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
 
-      - name: 依存関係のインストール
+      # 依存関係のインストールを分割して実行
+      - name: 依存関係のインストール（基本パッケージ）
         id: install
         continue-on-error: true
-        run: pnpm install
+        run: pnpm install --no-frozen-lockfile --ignore-scripts
+
+      - name: 依存関係のインストール（スクリプト実行）
+        if: steps.install.outcome == 'success'
+        run: pnpm rebuild
 
       # 依存関係のインストールに失敗した場合は再試行
       - name: 依存関係のインストール（再試行）
@@ -99,9 +117,6 @@ jobs:
 
           # キャッシュ問題対策
           pnpm install --force --no-frozen-lockfile
-
-          # メモリ設定の調整
-          export NODE_OPTIONS="--max-old-space-size=4096"
 
       # 環境固有の設定でビルド
       - name: '${{ inputs.environment }}環境向けビルド'
@@ -179,10 +194,28 @@ jobs:
           name: build-output-${{ inputs.environment }}
           path: out/
 
-      - name: 依存関係のインストール（本番用）
+      # pnpmキャッシュ問題対応強化
+      - name: PNPMキャッシュリセット
+        run: |
+          rm -rf node_modules
+          pnpm store prune
+          pnpm config set store-dir ./.pnpm-store
+
+      # メモリ設定を明示的に環境変数に設定
+      - name: 環境変数設定
+        run: |
+          echo "NODE_OPTIONS=--max_old_space_size=8192" >> $GITHUB_ENV
+          echo "PNPM_FLAGS=--no-frozen-lockfile" >> $GITHUB_ENV
+
+      # 依存関係のインストールを分割して実行
+      - name: 依存関係のインストール（基本パッケージ）
         id: prod_install
         continue-on-error: true
-        run: pnpm install --prod
+        run: pnpm install --prod --no-frozen-lockfile --ignore-scripts
+
+      - name: 依存関係のインストール（スクリプト実行）
+        if: steps.prod_install.outcome == 'success'
+        run: pnpm rebuild
 
       # 依存関係のインストールに失敗した場合は再試行
       - name: 依存関係のインストール（再試行）
@@ -215,7 +248,7 @@ jobs:
       # Cloudflare Pagesへのデプロイ（エラーハンドリング強化）
       - name: Cloudflare Pagesへのデプロイ
         id: deploy
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v3.1.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -227,7 +260,7 @@ jobs:
           CF_PAGES_DEBUG: true # デバッグログを有効化
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          NODE_OPTIONS: '--max_old_space_size=4096'
+          NODE_OPTIONS: '--max_old_space_size=8192'
 
       # デプロイエラーのハンドリング
       - name: デプロイエラーのチェック
