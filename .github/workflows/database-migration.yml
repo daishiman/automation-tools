@@ -18,7 +18,11 @@ on:
   push:
     branches: [develop, main]
     paths:
-      - 'db/migrations/**'
+      # スキーマ定義とマイグレーション関連ファイル
+      - 'src/infrastructure/database/drizzle/**/*.ts' # スキーマ定義
+      - 'drizzle/**/*.sql' # 生成されたマイグレーション
+      - 'migrations/**/*.sql' # D1用マイグレーション
+      # 除外パターン
       - '!**.md'
       - '!docs/**'
       - '!rules/**'
@@ -111,7 +115,19 @@ jobs:
           # ディレクトリ構造確認
           echo "作業ディレクトリの内容:"
           ls -la
-          echo "マイグレーションディレクトリ:"
+
+          # マイグレーションの自動生成と同期
+          echo "マイグレーションファイルを生成して同期しています..."
+          pnpm db:generate
+
+          echo "生成されたマイグレーションファイル:"
+          ls -la drizzle || echo "drizzleディレクトリが見つかりません"
+
+          echo "マイグレーションファイルを ./migrations へコピーしています..."
+          mkdir -p migrations
+          pnpm db:sync-migrations
+
+          echo "同期後のマイグレーションディレクトリ:"
           ls -la migrations || echo "マイグレーションディレクトリがありません"
 
           # wrangler.tomlが存在するか確認
