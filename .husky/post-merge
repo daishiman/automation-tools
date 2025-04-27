@@ -1,0 +1,103 @@
+#!/bin/sh
+
+echo "🔄 マージ後の処理を実行中..."
+
+# プロジェクトのルートディレクトリに移動
+cd "$(git rev-parse --show-toplevel)"
+
+# マージ前後のコミットハッシュを取得
+PREV_HEAD=$(git rev-parse ORIG_HEAD)
+CURRENT_HEAD=$(git rev-parse HEAD)
+echo "📋 変更: $(git log --oneline $PREV_HEAD..$CURRENT_HEAD | wc -l) コミット"
+
+# 変更されたファイルを取得
+changed_files=$(git diff-tree -r --name-only --no-commit-id $PREV_HEAD $CURRENT_HEAD)
+
+# 依存関係の変更を検出
+if echo "$changed_files" | grep -q "package.json\|pnpm-lock.yaml"; then
+  echo "📦 依存関係の変更を検出しました。パッケージをインストールします..."
+  pnpm install
+fi
+
+# マイグレーションファイルの変更を検出
+if echo "$changed_files" | grep -q "migrations\|schema.sql\|db/schema\|migrate.js\|database-migration"; then
+  echo "💾 データベーススキーマの変更を検出しました"
+
+  # package.jsonでマイグレーションコマンドを確認
+  if grep -q "\"db:migrate\"" package.json; then
+    echo "🔄 マイグレーションを実行中..."
+    pnpm db:migrate
+  elif grep -q "\"migrate\"" package.json; then
+    echo "🔄 マイグレーションを実行中..."
+    pnpm migrate
+  else
+    echo "⚠️ マイグレーションコマンドが見つかりません。手動でマイグレーションを確認してください。"
+  fi
+fi
+
+# 環境設定ファイルの変更を検出
+if echo "$changed_files" | grep -q ".env.example\|.env.template"; then
+  echo "⚙️ 環境設定ファイルの変更を検出しました。.envファイルの更新を確認してください。"
+fi
+
+# テストフレームワークの検出
+echo "🧪 テストを実行中..."
+# 非対話モードを強制するためのCI環境変数を設定
+export CI=true
+if grep -q "\"test:all\"" package.json; then
+  pnpm test:all --run
+  test_result=$?
+elif grep -q "\"test:integration\"" package.json; then
+  pnpm test:integration --run
+  test_result=$?
+else
+  # デフォルトのテストコマンド - 非対話モードで実行するためのフラグを追加
+  pnpm test --run
+  test_result=$?
+fi
+
+# ビルドスクリプトの有無を確認
+if echo "$changed_files" | grep -q "webpack\|vite\|tsconfig\|next.config"; then
+  echo "🏗️ ビルド設定の変更を検出しました。ビルドを実行します..."
+  if grep -q "\"build\"" package.json; then
+    pnpm build
+    build_result=$?
+    if [ $build_result -ne 0 ]; then
+      echo "⚠️ ビルドに失敗しました。設定を確認してください。"
+    fi
+  fi
+fi
+
+# 型チェックの実行
+if echo "$changed_files" | grep -q "\.tsx\?\|tsconfig"; then
+  echo "📘 TypeScriptファイルの変更を検出しました。型チェックを実行します..."
+  if grep -q "\"type-check\"" package.json; then
+    pnpm type-check
+    type_check_result=$?
+    if [ $type_check_result -ne 0 ]; then
+      echo "⚠️ 型チェックに失敗しました。"
+    fi
+  fi
+fi
+
+# テストが失敗した場合、警告を表示するが処理は続行
+if [ $test_result -ne 0 ]; then
+  echo "⚠️ 一部のテストが失敗しました。修正が必要かもしれません。"
+else
+  echo "✅ テストに成功しました！"
+fi
+
+# 要約を表示
+echo ""
+echo "====== マージ後の処理完了 ======"
+echo "📝 変更概要:"
+git log --pretty=format:"- %s" $PREV_HEAD..$CURRENT_HEAD | head -n 5
+echo ""
+echo "対応が必要な可能性のあるアクション:"
+[ "$test_result" -ne 0 ] && echo "- テスト失敗の修正"
+echo "$changed_files" | grep -q "package.json" && echo "- 新しい依存関係の確認"
+echo "$changed_files" | grep -q "migrations\|schema.sql\|db/schema\|migrate.js\|database-migration" && echo "- データベースマイグレーションの確認"
+echo "$changed_files" | grep -q ".env.example\|.env.template" && echo "- 環境変数の更新"
+
+echo "✅ マージ後の処理が完了しました！"
+exit 0

@@ -1,0 +1,168 @@
+name: 再利用可能テスト結果処理
+
+# 様々なテスト結果処理を一元化した再利用可能ワークフロー
+# このワークフローはテスト実行結果（JUnitレポート）とカバレッジレポートを
+# GitHub Actionsのアーティファクトとして保存し、必要に応じてPRにコメントします
+on:
+  workflow_call:
+    inputs:
+      test_type:
+        description: 'テスト結果のタイプ (unit, integration, api など)'
+        required: true
+        type: string
+      artifact_name:
+        description: 'アーティファクト名（指定しない場合は test_type + -results）'
+        required: false
+        type: string
+      junit_path:
+        description: 'JUnitレポートファイルのパス'
+        required: false
+        default: 'junit.xml'
+        type: string
+      coverage_path:
+        description: 'カバレッジレポートのディレクトリパス'
+        required: false
+        default: 'coverage'
+        type: string
+      retention_days:
+        description: 'アーティファクト保持日数'
+        required: false
+        default: '7'
+        type: string
+      comment_on_pr:
+        description: 'PRにテスト結果をコメントするかどうか'
+        required: false
+        default: false
+        type: boolean
+      fail_on_empty:
+        description: 'ファイルが見つからない場合に失敗するかどうか'
+        required: false
+        default: false
+        type: boolean
+
+# 権限の継承を明示的に指定
+permissions:
+  contents: read # アーティファクトの読み取り
+  issues: write # PRコメント用
+  pull-requests: write # PRコメント用
+
+jobs:
+  process-results:
+    name: 'テスト結果処理'
+    runs-on: ubuntu-latest
+    # 呼び出し元の権限を継承
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      # JUnitレポートファイルの存在確認
+      - name: JUnitレポート確認
+        id: check_junit
+        run: |
+          if [ -f "${{ inputs.junit_path }}" ]; then
+            echo "✅ JUnitレポートファイルが見つかりました"
+            echo "junit_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ JUnitレポートファイルが見つかりません: ${{ inputs.junit_path }}"
+            echo "junit_exists=false" >> $GITHUB_OUTPUT
+
+            # fail_on_emptyがtrueの場合は失敗
+            if [ "${{ inputs.fail_on_empty }}" == "true" ]; then
+              exit 1
+            fi
+          fi
+
+      # カバレッジディレクトリの存在確認
+      - name: カバレッジディレクトリ確認
+        id: check_coverage
+        run: |
+          if [ -d "${{ inputs.coverage_path }}" ]; then
+            echo "✅ カバレッジディレクトリが見つかりました"
+            echo "coverage_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ カバレッジディレクトリが見つかりません: ${{ inputs.coverage_path }}"
+            echo "coverage_exists=false" >> $GITHUB_OUTPUT
+
+            # fail_on_emptyがtrueの場合は失敗
+            if [ "${{ inputs.fail_on_empty }}" == "true" ]; then
+              exit 1
+            fi
+          fi
+
+      # JUnitレポートファイルの保存
+      - name: JUnitレポートの保存
+        if: steps.check_junit.outputs.junit_exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-report-${{ inputs.test_type }}
+          path: ${{ inputs.junit_path }}
+          retention-days: ${{ inputs.retention_days }}
+          if-no-files-found: warn
+
+      # カバレッジレポートの保存
+      - name: カバレッジレポートの保存
+        if: steps.check_coverage.outputs.coverage_exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report-${{ inputs.test_type }}
+          path: ${{ inputs.coverage_path }}
+          retention-days: ${{ inputs.retention_days }}
+          if-no-files-found: warn
+
+      # PRにテスト結果をコメント
+      - name: テスト結果のPRコメント
+        if: inputs.comment_on_pr && github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            // テスト結果のサマリー生成
+            let message = `## テスト結果: ${{ inputs.test_type }}\n\n`;
+
+            // JUnitレポートの存在確認結果
+            const junitExists = '${{ steps.check_junit.outputs.junit_exists }}';
+            if (junitExists === 'true') {
+              message += '✅ テスト実行完了\n\n';
+
+              // ここでJUnitファイルを解析して詳細を追加することも可能
+              // 例: テスト成功数、失敗数、スキップ数など
+            } else {
+              message += '⚠️ テスト結果ファイルが見つかりません\n\n';
+            }
+
+            // カバレッジレポートの存在確認結果
+            const coverageExists = '${{ steps.check_coverage.outputs.coverage_exists }}';
+            if (coverageExists === 'true') {
+              message += '✅ カバレッジレポート生成完了\n\n';
+
+              // カバレッジサマリーからカバレッジ値を抽出
+              try {
+                const fs = require('fs');
+                if (fs.existsSync('${{ inputs.coverage_path }}/coverage-summary.json')) {
+                  const summary = JSON.parse(fs.readFileSync('${{ inputs.coverage_path }}/coverage-summary.json', 'utf8'));
+                  const lineCoverage = summary.total.lines.pct;
+                  const stmtCoverage = summary.total.statements.pct;
+
+                  message += `- 行カバレッジ: ${lineCoverage}%\n`;
+                  message += `- ステートメントカバレッジ: ${stmtCoverage}%\n\n`;
+                }
+              } catch (error) {
+                console.error('カバレッジファイルの読み取りエラー:', error);
+                message += '⚠️ カバレッジ詳細の読み取りに失敗しました\n\n';
+              }
+            } else {
+              message += '⚠️ カバレッジレポートが見つかりません\n\n';
+            }
+
+            message += `詳細は[こちらのワークフロー実行結果](${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})を確認してください。`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });

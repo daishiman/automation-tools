@@ -1,33 +1,34 @@
-# Dependencies
+# 依存関係
 node_modules
 .pnpm-store/
 
-# Build outputs
+# ビルド出力
 .next/
 out/
 build/
 dist/
 
-# Testing
+# テスト関連
 coverage/
 .nyc_output/
 playwright-report/
 test-results/
+.vitest-cache/
 
-# Environment variables
+# 環境変数
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env.development
+.env.production
+.dev.vars
 
-# Debug logs
+# デバッグログ
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# IDE and editors
+# IDE・エディタ設定
 .idea/
 .vscode/*
 !.vscode/extensions.json
@@ -39,13 +40,13 @@ pnpm-debug.log*
 .DS_Store
 Thumbs.db
 
-# Cache
+# キャッシュ
 .eslintcache
 .stylelintcache
 .cache/
 tsconfig.tsbuildinfo
 
-# Misc
+# その他
 *.log
 *.pid
 *.seed
@@ -55,6 +56,36 @@ tsconfig.tsbuildinfo
 temp/
 *.bak
 
-# Cloudflare
+# Cloudflare関連
 .wrangler/
-.dev.vars
+.cloudflare/
+
+# カバレッジツール（istanbul、nyc、vitestなど）が使用するディレクトリ
+/coverage
+/coverage-*
+/.nyc_output
+
+# カバレッジ履歴とサマリーは無視しない
+!/docs/coverage-history.json
+!/docs/coverage-summary.md
+
+# 追加エントリ
+.turbo/
+tmp/
+.swc/
+*.swp
+*.swo
+
+# GitHub Actions関連
+github-actions-results/
+github-actions-reports/
+
+# 重要：これらのファイルは無視しないでください
+# package.json
+# pnpm-lock.yaml
+# tsconfig.json
+# wrangler.toml
+# .env.example
+
+# テスト結果
+junit.xml

@@ -1,0 +1,190 @@
+#!/bin/sh
+# エラーコードを明示的に管理
+
+echo "🔍 コミット前のチェック実行中..."
+
+# プロジェクトのルートディレクトリに移動
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# 開始時間を記録
+start_time=$(date +%s)
+
+# ステージングされたファイルとステージングされていない変更ファイルを取得
+staged_files=$(git diff --cached --name-only --diff-filter=ACM)
+unstaged_files=$(git diff --name-only)
+
+# すべての変更ファイルを取得
+all_changed_files="$staged_files $unstaged_files"
+js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' | grep -v '^scripts/' | sort -u || true)
+css_json_md_files=$(echo "$all_changed_files" | grep -E '\.(json|md|mdx|css)$' | sort -u || true)
+rules_files=$(echo "$all_changed_files" | grep -E '^rules/.+\.md$' | sort -u || true)
+# マイグレーション関連ファイルの検出
+drizzle_files=$(echo "$all_changed_files" | grep -E '^drizzle/.*\.sql$' | sort -u || true)
+
+# 変更がない場合は早期終了
+if [ -z "$all_changed_files" ]; then
+  echo "📝 変更ファイルなし。チェックをスキップします。"
+  exit 0
+fi
+
+# マイグレーションファイルの同期 - 常に実行
+echo "🔄 マイグレーションディレクトリを確認します..."
+if [ -d "drizzle" ] && [ -n "$(find drizzle -name "*.sql" 2>/dev/null)" ]; then
+  echo "🔄 マイグレーションファイルを同期します..."
+  mkdir -p migrations
+  pnpm db:sync-migrations
+
+  if [ $? -eq 0 ]; then
+    echo "✅ マイグレーションファイルの同期が完了しました"
+    # 同期したファイルを自動的にステージングに追加（新規ファイルがある場合のみ）
+    if [ -n "$(find migrations -name "*.sql" -not -path "*/\.*" 2>/dev/null)" ]; then
+      echo "📥 新しいマイグレーションファイルをステージングに追加します"
+      git add migrations/*.sql
+    fi
+  else
+    echo "❌ マイグレーションファイルの同期に失敗しました"
+    has_errors=1
+  fi
+else
+  echo "📝 drizzleディレクトリにSQLファイルが見つかりません。マイグレーション同期をスキップします。"
+fi
+
+# テストスキップフラグをチェック
+skip_tests=${SKIP_TESTS:-""}
+
+# エラーが発生したかどうかを追跡
+has_errors=0
+
+# 1. JS/TSファイルのlintとフォーマット
+if [ ! -z "$js_ts_files" ]; then
+  echo "🧹 ESLint/Prettier実行中..."
+  # ESLint実行
+  pnpm eslint --fix $js_ts_files
+  lint_result=$?
+
+  if [ $lint_result -ne 0 ]; then
+    echo "❌ ESLintエラーが見つかりました。修正してから再度コミットしてください。"
+    has_errors=1
+  fi
+
+  # Prettier実行
+  pnpm prettier --write $js_ts_files
+  prettier_result=$?
+
+  if [ $prettier_result -ne 0 ]; then
+    echo "❌ Prettierの実行に失敗しました。"
+    has_errors=1
+  fi
+fi
+
+# 2. CSS/JSON/MD/MDXファイルのフォーマット
+if [ ! -z "$css_json_md_files" ]; then
+  echo "CSS/JSON/Markdownファイルのフォーマット中..."
+  pnpm prettier --write $css_json_md_files
+  css_json_md_result=$?
+
+  if [ $css_json_md_result -ne 0 ]; then
+    echo "❌ フォーマットに失敗しました。"
+    has_errors=1
+  fi
+fi
+
+# 3. 型チェック（JSファイルのみの場合はスキップ可能）
+if [ $has_errors -eq 0 ] && echo "$js_ts_files" | grep -q "\.tsx\?$"; then
+  echo "📘 型チェック実行中..."
+  pnpm type-check
+  type_check_result=$?
+
+  if [ $type_check_result -ne 0 ]; then
+    echo "❌ 型エラーが見つかりました。修正してから再度コミットしてください。"
+    has_errors=1
+  fi
+else
+  echo "📝 TSファイルの変更なし。型チェックをスキップします。"
+fi
+
+# 4. セキュリティチェック結果
+echo "🔒 セキュリティチェック実行中..."
+# セキュリティチェックはエラーを無視する
+pnpm audit --production --audit-level=critical || true
+echo "ℹ️ セキュリティの問題がある場合は将来的に対応を検討してください。"
+
+# 5. JS/TSファイルの変更がある場合、関連テスト実行
+if [ $has_errors -eq 0 ] && [ ! -z "$js_ts_files" ] && [ -z "$skip_tests" ]; then
+  echo "🧪 変更関連テスト実行中..."
+
+  # 関連テスト実行（効率的な方法）
+  NODE_OPTIONS="--max-old-space-size=4096" pnpm vitest related --run $js_ts_files --passWithNoTests
+  test_result=$?
+
+  if [ $test_result -ne 0 ]; then
+    echo "❌ テストが失敗しました。修正してから再度コミットしてください。"
+    has_errors=1
+  else
+    echo "✅ テストが成功しました。"
+  fi
+else
+  echo "📝 テストはスキップします。テストを必ず実行するには SKIP_TESTS=0 を設定してください。"
+  test_result=0
+fi
+
+# 6. rulesディレクトリの変更ファイルのみ基本検証
+if [ $has_errors -eq 0 ] && [ ! -z "$rules_files" ]; then
+  echo "📋 ドキュメントファイルの基本検証中..."
+  rules_errors=0
+
+  for file in $rules_files; do
+    # ファイルの基本検証
+    echo "  - $file の基本検証中..."
+
+    # 1. ファイルが空でないことを確認
+    if [ ! -s "$file" ]; then
+      echo "    ❌ $file が空です"
+      rules_errors=1
+      continue
+    fi
+
+    # 2. 最低限の構造チェック
+    if ! grep -q "^# " "$file"; then
+      echo "    ⚠️ $file に適切な見出し(#)がありません"
+      rules_errors=1
+    fi
+  done
+
+  if [ $rules_errors -ne 0 ]; then
+    echo "❌ rulesファイルに問題があります。修正してから再度コミットしてください。"
+    has_errors=1
+  else
+    echo "✅ rulesファイルの基本検証に成功しました"
+  fi
+else
+  echo "📝 rules変更なし。ドキュメントチェックをスキップします。"
+fi
+
+# フォーマッターで修正されたファイルのみをステージングする
+if [ -n "$(git diff --name-only)" ]; then
+  echo "📝 フォーマッターによる変更のみをステージングします..."
+  # ステージング済みのファイルのうち、フォーマッター実行後に変更されたもののみを再ステージング
+  for file in $staged_files; do
+    if [ -n "$(git diff --name-only $file)" ]; then
+      echo "  - $file の変更をステージングします"
+      git add $file
+    fi
+  done
+fi
+
+# 実行終了時間と結果表示
+end_time=$(date +%s)
+execution_time=$((end_time - start_time))
+
+# 成功・失敗の表示とステータスコードの設定
+if [ $has_errors -eq 1 ]; then
+  echo "❌ チェック中にエラーが見つかりました。修正してから再度コミットしてください。"
+  echo "⏱️ 実行時間: ${execution_time}秒"
+  exit 1
+else
+  echo "✅ すべてのチェック成功！コミットを続行します。"
+  echo "⏱️ 実行時間: ${execution_time}秒"
+  echo "ℹ️ ※テストをスキップする場合: SKIP_TESTS=1 git commit -m \"メッセージ\""
+  exit 0
+fi

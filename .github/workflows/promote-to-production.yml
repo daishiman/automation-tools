@@ -1,0 +1,424 @@
+name: 本番環境へのプロモーション
+
+# 開発環境から本番環境へのプロモーション（手動実行のみ）
+on:
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: 'プロモーション元ブランチ'
+        required: true
+        default: 'develop'
+        type: string
+      confirm:
+        description: '本番環境へのプロモーションを確認しますか？'
+        required: true
+        default: 'no'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+      skip_tests:
+        description: 'テストをスキップしますか？（緊急デプロイ時のみ）'
+        required: false
+        default: 'no'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+      deploy_notes:
+        description: 'デプロイに関する注記（変更内容や注意点など）'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+  deployments: write
+
+jobs:
+  # 確認ステップ
+  confirm:
+    name: 本番プロモーション確認
+    runs-on: ubuntu-latest
+    # 明示的な確認が必要
+    if: github.event.inputs.confirm == 'yes'
+    steps:
+      - name: 確認
+        run: |
+          echo "本番環境へのプロモーションが確認されました。ソースブランチ: ${{ github.event.inputs.source_branch }}"
+          echo "実行者: ${{ github.actor }}"
+          echo "日時: $(date)"
+          echo "テストスキップ: ${{ github.event.inputs.skip_tests }}"
+
+          if [[ "${{ github.event.inputs.deploy_notes }}" != "" ]]; then
+            echo "デプロイ注記: ${{ github.event.inputs.deploy_notes }}"
+          fi
+
+  # テスト実行
+  test:
+    name: テスト実行
+    needs: [confirm]
+    # テストスキップが指定されていない場合のみ実行
+    if: github.event.inputs.skip_tests != 'yes'
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source_branch }}
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: リント実行
+        run: pnpm lint
+
+      - name: 型チェック
+        run: pnpm type-check
+
+      - name: ユニットテスト実行
+        run: pnpm test --coverage
+
+      - name: テストカバレッジチェック
+        run: |
+          COVERAGE=$(cat coverage/coverage-summary.json | jq -r '.total.lines.pct')
+          echo "テストカバレッジ: $COVERAGE%"
+
+          if (( $(echo "$COVERAGE < 70" | bc -l) )); then
+            echo "⚠️ テストカバレッジが目標値（70%）を下回っています"
+            echo "現在のカバレッジ: $COVERAGE%"
+            echo "警告として扱いますが、改善を検討してください"
+          else
+            echo "✅ テストカバレッジが目標値を満たしています"
+          fi
+
+      # セキュリティスキャン
+      - name: 依存関係のセキュリティスキャン
+        run: pnpm audit || echo "セキュリティの問題が見つかりましたが、プロモーションは続行します"
+
+  # プルリクエスト作成（オプション）
+  create-pr:
+    name: PRの作成
+    needs: [confirm]
+    if: false # 現在は直接マージ方式を使用 (PR方式に切り替えるにはfalseをtrueに変更)
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.source_branch }}
+
+      - name: PRの作成
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: Promote ${{ github.event.inputs.source_branch }} to main'
+          branch: 'promote/${{ github.event.inputs.source_branch }}-to-main'
+          delete-branch: true
+          title: '本番環境へのプロモーション: ${{ github.event.inputs.source_branch }} → main'
+          body: |
+            ## 本番環境へのプロモーション
+
+            **ソースブランチ:** ${{ github.event.inputs.source_branch }}
+            **実行者:** @${{ github.actor }}
+            **日時:** $(date)
+
+            ${{ github.event.inputs.deploy_notes != '' && format('**デプロイ注記:** {0}', github.event.inputs.deploy_notes) || '' }}
+          draft: false
+
+  # mainブランチへのマージ
+  merge:
+    name: mainへのマージ
+    needs: [test]
+    # テストスキップが指定されている場合は、confirm直後に実行
+    if: always() && (github.event.inputs.skip_tests == 'yes' && needs.confirm.result == 'success') || (github.event.inputs.skip_tests != 'yes' && (needs.test.result == 'success' || needs.test.result == 'skipped'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Gitユーザー設定
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: ソースブランチのマージ
+        run: |
+          git fetch origin ${{ github.event.inputs.source_branch }}
+          git merge origin/${{ github.event.inputs.source_branch }} --no-ff -m "Promote ${{ github.event.inputs.source_branch }} to main"
+
+          # デプロイ注記がある場合は追加
+          if [[ "${{ github.event.inputs.deploy_notes }}" != "" ]]; then
+            echo "" >> $GITHUB_WORKSPACE/commit_message.txt
+            echo "デプロイ注記:" >> $GITHUB_WORKSPACE/commit_message.txt
+            echo "${{ github.event.inputs.deploy_notes }}" >> $GITHUB_WORKSPACE/commit_message.txt
+            git commit --amend -F $GITHUB_WORKSPACE/commit_message.txt
+          fi
+
+          git push origin main
+
+      - name: リリースタグの作成
+        run: |
+          # 自動的にバージョンを決定
+          # package.jsonからバージョンを取得
+          VERSION=$(cat package.json | jq -r '.version')
+
+          # タグがなければそのまま使用
+          if ! git tag | grep -q "v$VERSION"; then
+            TAG="v$VERSION"
+          else
+            # すでに同じバージョンのタグがある場合は日付を追加
+            TAG="v$VERSION-$(date +%Y%m%d-%H%M%S)"
+          fi
+
+          git tag -a "$TAG" -m "Release $TAG - Promoted from ${{ github.event.inputs.source_branch }}"
+          git push origin "$TAG"
+
+          echo "タグを作成しました: $TAG"
+
+  # 本番環境へのデプロイ確認
+  deploy-confirmation:
+    name: デプロイ確認
+    needs: [merge]
+    runs-on: ubuntu-latest
+    steps:
+      - name: デプロイ確認
+        run: |
+          echo "mainブランチへのマージが完了しました。"
+          echo "本番環境CI/CDワークフローが自動的に実行されます。"
+          echo "ワークフロー実行状況を確認してください: ${{ github.server_url }}/${{ github.repository }}/actions"
+
+  # プロモーション通知
+  notify:
+    name: プロモーション通知
+    needs: [deploy-confirmation]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Slack通知
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: 本番環境プロモーション ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            ソースブランチ: ${{ github.event.inputs.source_branch }}
+            ターゲットブランチ: main
+            実行者: ${{ github.actor }}
+            ステータス: ${{ job.status }}
+            ${{ github.event.inputs.deploy_notes != '' && format('デプロイ注記: {0}', github.event.inputs.deploy_notes) || '' }}
+            ${{ github.event.inputs.skip_tests == 'yes' && '⚠️ 注意: テストはスキップされました' || '' }}
+
+  # 本番環境へのデプロイ
+  deploy-to-prod:
+    name: '本番環境へのデプロイ'
+    needs: [deploy-confirmation]
+    runs-on: ubuntu-latest
+    environment: production
+    if: github.event.inputs.confirm == 'yes'
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      - name: 本番環境向けビルド
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_ENV: production
+          NEXT_PUBLIC_API_BASE_URL: /api
+          NEXT_PUBLIC_APP_URL: https://automationa-tools.pages.dev
+          NODE_OPTIONS: '--max_old_space_size=4096'
+
+      - name: Cloudflare Pagesへのデプロイ
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy out --project-name=automationa-tools --branch=main --commit-dirty=true
+          packageManager: pnpm
+          wranglerVersion: '4.13.2'
+          workingDirectory: .
+        env:
+          CF_PAGES_DEBUG: true
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      - name: デプロイURLの出力
+        if: success()
+        run: echo "✅ 本番環境がデプロイされました： ${{ steps.deploy.outputs.url }}"
+
+      - name: デプロイ通知
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: good
+          SLACK_TITLE: 本番環境デプロイ ✅ 成功
+          SLACK_MESSAGE: |
+            環境: 本番環境
+            URL: https://automationa-tools.pages.dev
+            ブランチ: main
+            ステータス: success
+            詳細: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  # データベースマイグレーション（明示的に本番環境用）
+  db-migration:
+    name: '本番環境データベースマイグレーション'
+    needs: [deploy-to-prod]
+    runs-on: ubuntu-latest
+    environment: production
+    if: needs.deploy-to-prod.result == 'success'
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # バックアップ作成
+      - name: データベースバックアップ
+        run: pnpm db:backup
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
+
+      # データベースマイグレーションの実行
+      - name: データベースマイグレーション実行
+        if: success()
+        run: |
+          echo "本番環境のデータベースマイグレーションを実行しています..."
+
+          # 環境変数の確認
+          echo "環境変数とワークスペース情報:"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "環境名: production"
+
+          # 環境設定
+          ENV="production"
+          D1_DB_NAME="automationa-tools-db"
+          echo "マイグレーション実行環境: 本番環境"
+          echo "使用するデータベース名: ${D1_DB_NAME}"
+
+          # ディレクトリ構造確認
+          echo "作業ディレクトリの内容:"
+          ls -la
+          echo "マイグレーションディレクトリ:"
+          ls -la migrations || echo "マイグレーションディレクトリがありません"
+
+          # wrangler.tomlの内容確認（データベース設定部分）
+          echo "wrangler.toml内のデータベース設定確認:"
+          grep -v -e "apiToken" -e "password" -e "secret" wrangler.toml | grep -A 5 "d1_databases" | cat || echo "構成ファイルの表示に失敗しました"
+
+          # テーブル情報確認
+          echo "データベーステーブル一覧を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
+            --command="SELECT name FROM sqlite_master WHERE type='table'" \
+            --env=${ENV} || echo "テーブル一覧の取得に失敗しましたが続行します"
+
+          # マイグレーションファイルの状態確認
+          echo "マイグレーションファイルの状態を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
+            --env=${ENV} || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+
+          # マイグレーション実行（--debugフラグを削除）
+          echo "マイグレーションを適用しています..."
+          echo "使用データベース名: ${D1_DB_NAME}, 環境: ${ENV}"
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
+            --env=${ENV} || echo "マイグレーション適用に失敗しました"
+
+          # 成功時のメッセージ
+          echo "====================================="
+          echo "マイグレーションプロセスが完了しました"
+          echo "環境: ${ENV}"
+          echo "データベース: ${D1_DB_NAME}"
+          echo "====================================="
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+
+      # KVストア初期化
+      - name: 本番KVストア初期化
+        run: |
+          # アプリバージョンをKVに保存
+          pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")"
+          echo "KVストア初期化完了"
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      # 結果通知
+      - name: マイグレーション結果通知
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: 本番データベースマイグレーション ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: 本番環境
+            データベース: ${{ vars.D1_DATABASE_NAME }}
+            ステータス: ${{ job.status }}

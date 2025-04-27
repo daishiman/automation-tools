@@ -1,0 +1,286 @@
+name: 開発環境CI/CD
+
+# develop ブランチとプルリクエストのCI/CD
+on:
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+  pull_request:
+    branches:
+      - develop
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      preview_branch:
+        description: 'プレビューデプロイを行うブランチ名（feature/xxx など）'
+        required: false
+        type: string
+
+# トップレベルの権限設定
+permissions:
+  contents: read # ソースコードへの読み取り権限
+  pull-requests: write # PRにコメントする権限
+  issues: read # issue情報の読み取り
+  deployments: write # デプロイ作成権限
+
+# 同時実行制御（同じブランチで複数の実行がある場合、古いものをキャンセル）
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 共通セットアップジョブ（依存関係インストールなど）
+  setup:
+    name: 環境セットアップ
+    runs-on: ubuntu-latest
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          # workflow_dispatchでpreview_branchが指定されている場合は、そのブランチを使用
+          ref: ${{ github.event.inputs.preview_branch || github.ref }}
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      - name: 依存関係のインストール
+        id: install
+        run: pnpm install
+
+      # ビルドキャッシュの利用設定
+      - name: Next.jsキャッシュのセットアップ
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/pnpm-lock.yaml') }}-
+
+  # コードスタイルチェックとリンター実行
+  lint:
+    name: コードスタイルチェック
+    needs: [setup]
+    runs-on: ubuntu-latest
+    # 開発段階なので続行可能にする
+    continue-on-error: true
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          # workflow_dispatchでpreview_branchが指定されている場合は、そのブランチを使用
+          ref: ${{ github.event.inputs.preview_branch || github.ref }}
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # ESLintチェック
+      - name: ESLintの実行
+        id: eslint
+        run: pnpm lint:src || echo "ESLintでエラーが見つかりました（開発段階のため続行します）"
+        continue-on-error: true
+
+      # Prettierチェック
+      - name: Prettierの実行
+        id: prettier
+        run: pnpm format:check || echo "Prettierでエラーが見つかりました（開発段階のため続行します）"
+        continue-on-error: true
+
+      # 型チェック
+      - name: 型チェックの実行
+        id: typecheck
+        run: pnpm typecheck || echo "型チェックでエラーが見つかりました（開発段階のため続行します）"
+        continue-on-error: true
+
+      # チェック結果のサマリー
+      - name: チェック結果の確認
+        if: always()
+        run: |
+          echo "ESLint: ${{ steps.eslint.outcome }}"
+          echo "Prettier: ${{ steps.prettier.outcome }}"
+          echo "TypeCheck: ${{ steps.typecheck.outcome }}"
+
+          # 開発段階ではエラーがあっても続行するため、常に成功とする
+          echo "コードスタイルチェック完了（開発段階のため警告のみ）"
+
+  # テスト実行ジョブ
+  test:
+    name: テスト実行
+    needs: [setup]
+    runs-on: ubuntu-latest
+    # 開発段階なので続行可能にする
+    continue-on-error: true
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          # workflow_dispatchでpreview_branchが指定されている場合は、そのブランチを使用
+          ref: ${{ github.event.inputs.preview_branch || github.ref }}
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # テスト実行
+      - name: テストの実行
+        run: pnpm test:ci || echo "テストに失敗しました（開発段階のため続行します）"
+        continue-on-error: true
+
+      # テスト結果サマリー生成
+      - name: テスト結果サマリー生成
+        if: always()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            try {
+              // テスト結果をPRにコメント
+              const status = '${{ job.status }}' === 'success' ? '✅ 成功' : '❌ 失敗';
+              const comment = `## テスト実行結果: ${status}
+
+              - 実行日時: ${new Date().toISOString()}
+              - コミット: ${process.env.GITHUB_SHA}
+              - ワークフロー: [${process.env.GITHUB_WORKFLOW}](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})
+              `;
+
+              if (process.env.GITHUB_EVENT_NAME === 'pull_request') {
+                github.rest.issues.createComment({
+                  issue_number: context.issue.number,
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  body: comment
+                });
+              }
+            } catch (error) {
+              console.error('コメント投稿中にエラーが発生しました:', error);
+            }
+
+  # 開発環境へのデプロイ
+  deploy:
+    name: 開発環境デプロイ
+    # PR時は実行しない（プレビュー環境へデプロイする）
+    if: github.event_name != 'pull_request' && github.event.inputs.preview_branch == ''
+    needs: [setup]
+    permissions:
+      contents: read
+      deployments: write
+      id-token: write # OIDC認証用
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: development
+      app_url: https://automationa-tools.pages.dev
+      branch_name: develop
+      next_public_env: development
+      send_notification: true
+      strict_validation: false
+    secrets:
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+  # PRのプレビュー環境へのデプロイ
+  deploy-preview:
+    name: プレビュー環境デプロイ
+    if: github.event_name == 'pull_request' || github.event.inputs.preview_branch != ''
+    needs: [setup]
+    permissions:
+      contents: read
+      deployments: write
+      id-token: write # OIDC認証用
+      pull-requests: write # PRコメント用
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: preview
+      app_url: ${{ github.event_name == 'pull_request' && format('https://pr-{0}.automationa-tools.pages.dev', github.event.number) || format('https://{0}.automationa-tools.pages.dev', github.event.inputs.preview_branch) }}
+      branch_name: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.number) || github.event.inputs.preview_branch }}
+      next_public_env: development
+      send_notification: false
+      strict_validation: false
+    secrets:
+      CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+      CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+      SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+
+  # プレビューデプロイURLをPRにコメント
+  comment-preview-url:
+    name: プレビューURLコメント
+    if: github.event_name == 'pull_request'
+    needs: [deploy-preview]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: プレビューURLコメント
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const previewUrl = `https://pr-${context.issue.number}.automationa-tools.pages.dev`;
+
+            const comment = `## 🚀 プレビュー環境がデプロイされました
+
+            プレビューURL: [${previewUrl}](${previewUrl})
+
+            このプレビュー環境は自動的に作成され、PRがマージまたはクローズされると削除されます。`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

@@ -1,0 +1,24 @@
+# ビルド成果物
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+
+# キャッシュディレクトリ
+.pnpm-store/
+.turbo/
+.cache/
+
+# 設定ファイル
+*.config.js
+next-env.d.ts
+
+# 大きなライブラリファイル
+public/
+static/
+
+# テスト関連
+**/__tests__/fixtures/
+**/__mocks__/

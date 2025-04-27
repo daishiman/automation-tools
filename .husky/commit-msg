@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "Commit-msg hook"
+exit 0

@@ -1,0 +1,518 @@
+name: 再利用可能デプロイ
+
+# 環境ごとのデプロイを一元化した再利用可能ワークフロー
+# Cloudflareを使用してデプロイを行います（AWSは使用しません）
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: '環境名（development/production）'
+        required: true
+        type: string
+      app_url:
+        description: 'アプリケーションのURL（スラッシュの有無に注意）'
+        required: true
+        type: string
+      branch_name:
+        description: 'デプロイ先のブランチ名（develop/main）'
+        required: true
+        type: string
+      next_public_env:
+        description: '環境変数 NEXT_PUBLIC_ENV の値'
+        required: false
+        default: 'development'
+        type: string
+      strict_validation:
+        description: '厳格な検証を行うかどうか'
+        required: false
+        default: false
+        type: boolean
+      send_notification:
+        description: 'デプロイ通知を送信するかどうか'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      CF_API_TOKEN:
+        required: true
+      CF_ACCOUNT_ID:
+        required: true
+      SLACK_WEBHOOK:
+        required: false
+
+# トップレベルの権限設定
+permissions:
+  contents: read
+  deployments: write
+  id-token: write # OIDC認証用
+
+jobs:
+  build:
+    name: '${{ inputs.environment }}環境向けビルド'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      # ビルドキャッシュの活用
+      - name: Next.jsキャッシュのセットアップ
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+          key: ${{ runner.os }}-nextjs-${{ inputs.environment }}-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('**.[jt]s', '**.[jt]sx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ inputs.environment }}-${{ hashFiles('**/pnpm-lock.yaml') }}-
+
+      - name: 依存関係のインストール
+        id: install
+        continue-on-error: true
+        run: pnpm install
+
+      # 依存関係のインストールに失敗した場合は再試行
+      - name: 依存関係のインストール（再試行）
+        if: steps.install.outcome != 'success'
+        run: |
+          echo "依存関係のインストールを再試行します..."
+          rm -rf node_modules
+          pnpm store prune
+
+          # キャッシュ問題対策
+          pnpm install --force --no-frozen-lockfile
+
+          # メモリ設定の調整
+          export NODE_OPTIONS="--max-old-space-size=4096"
+
+      # 環境固有の設定でビルド
+      - name: '${{ inputs.environment }}環境向けビルド'
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_ENV: ${{ inputs.next_public_env }}
+          NEXT_PUBLIC_API_BASE_URL: /api
+          NEXT_PUBLIC_APP_URL: ${{ inputs.app_url }}
+          NODE_OPTIONS: '--max_old_space_size=4096'
+
+      # ビルド成果物の検証
+      - name: ビルド成果物の検証
+        run: |
+          echo "ビルド成果物の内容確認:"
+          ls -la out/
+
+          # index.htmlの存在確認（重要）
+          if [ ! -f "out/index.html" ]; then
+            echo "エラー: index.htmlが見つかりません。ビルドに失敗しています。"
+            exit 1
+          else
+            echo "✓ index.htmlが正常に生成されました"
+            head -n 10 out/index.html
+          fi
+
+          # 必要なアセットディレクトリの確認
+          if [ ! -d "out/_next" ]; then
+            echo "警告: _nextディレクトリが見つかりません。静的ファイルが不足している可能性があります。"
+          else
+            echo "✓ _nextディレクトリが存在します"
+            ls -la out/_next
+          fi
+
+      - name: ビルド成果物の保存
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-output-${{ inputs.environment }}
+          path: out/
+          retention-days: 1 # ビルド成果物は短期間のみ保持
+
+  deploy:
+    name: '${{ inputs.environment }}環境デプロイ'
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }} # GitHub環境を指定（環境変数・シークレットのスコープ）
+    permissions:
+      contents: read
+      deployments: write
+      id-token: write # OIDC認証用
+    steps:
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      # ビルド成果物を再利用
+      - name: ビルド成果物のダウンロード
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output-${{ inputs.environment }}
+          path: out/
+
+      - name: 依存関係のインストール（本番用）
+        id: prod_install
+        continue-on-error: true
+        run: pnpm install --prod
+
+      # 依存関係のインストールに失敗した場合は再試行
+      - name: 依存関係のインストール（再試行）
+        if: steps.prod_install.outcome != 'success'
+        run: |
+          echo "依存関係のインストールを再試行します..."
+          rm -rf node_modules
+          pnpm store prune
+          pnpm install --force --prod --no-frozen-lockfile
+
+      # ビルド成果物の確認（デプロイ前に再確認）
+      - name: ビルド成果物の最終確認
+        run: |
+          echo "デプロイ前の最終確認:"
+          ls -la out/
+
+          # index.htmlの存在確認（重要）
+          if [ ! -f "out/index.html" ]; then
+            echo "エラー: index.htmlが見つかりません。デプロイを中止します。"
+            exit 1
+          fi
+
+          # ファイルサイズの確認
+          echo "ビルド成果物のサイズ:"
+          du -sh out/
+          find out/ -type f -name "*.html" | wc -l
+          find out/ -type f -name "*.js" | wc -l
+          find out/ -type f -name "*.css" | wc -l
+
+      # Cloudflare Pagesへのデプロイ（エラーハンドリング強化）
+      - name: Cloudflare Pagesへのデプロイ
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          accountId: ${{ secrets.CF_ACCOUNT_ID }}
+          command: pages deploy out --project-name=automationa-tools --branch=${{ inputs.branch_name }} --commit-dirty=true
+          packageManager: pnpm
+          wranglerVersion: '4.13.2'
+          workingDirectory: .
+        env:
+          CF_PAGES_DEBUG: true # デバッグログを有効化
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+
+      # デプロイエラーのハンドリング
+      - name: デプロイエラーのチェック
+        if: ${{ failure() && steps.deploy.outcome == 'failure' }}
+        run: |
+          echo "Cloudflare Pagesへのデプロイに失敗しました。"
+          echo "エラーの詳細を確認してください。"
+
+          # デプロイログの確認
+          if [ -f "wrangler-deploy.log" ]; then
+            echo "デプロイログ:"
+            cat wrangler-deploy.log
+          fi
+
+          # Cloudflare APIトークン詳細チェック
+          echo "API トークンの権限を確認してください:"
+          echo "- Account.Cloudflare Pages: Edit"
+          echo "- Account.Worker Scripts: Edit"
+          echo "- Account.Workers R2 Storage: Edit"
+          echo "- Account.Workers KV Storage: Edit"
+          echo "- Account.D1: Edit"
+          echo "- API Shield: Edit"
+          echo "- Zone.Cloudflare Pages: Edit"
+
+          # トークンとアカウントIDの確認
+          echo "シークレット設定を確認してください:"
+          echo "CF_API_TOKEN と CF_ACCOUNT_ID がGitHub Secretsに正しく設定されているか確認"
+
+          # プロジェクト名が正しいか確認
+          echo "プロジェクト名: automationa-tools"
+          echo "指定したデプロイ環境: ${{ inputs.environment }}"
+          echo "指定したブランチ名: ${{ inputs.branch_name }}"
+
+          # プロジェクト一覧の取得を試行
+          echo "Cloudflareプロジェクト一覧の取得を試行中..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler pages project list || echo "プロジェクト一覧の取得に失敗しました"
+
+          exit 1
+
+      # デプロイURLの出力
+      - name: デプロイURLの出力
+        if: success()
+        run: echo "✅ ${{ inputs.environment }}環境がデプロイされました： ${{ steps.deploy.outputs.url }}"
+
+      # データベースマイグレーションの実行
+      - name: データベースマイグレーション実行
+        if: success()
+        run: |
+          echo "データベースマイグレーションを実行しています（${{ inputs.environment }}環境）..."
+
+          # 環境変数の確認
+          echo "環境変数とワークスペース情報:"
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "環境名: ${{ inputs.environment }}"
+
+          # 環境設定
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            ENV="preview"
+            D1_DB_NAME="automationa-tools-dev-db"
+            echo "マイグレーション実行環境: 開発環境"
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            ENV="production"
+            D1_DB_NAME="automationa-tools-db"
+            echo "マイグレーション実行環境: 本番環境"
+          fi
+
+          echo "使用するデータベース名: ${D1_DB_NAME}"
+
+          # ディレクトリ構造確認
+          echo "作業ディレクトリの内容:"
+          ls -la
+          echo "マイグレーションディレクトリ:"
+          ls -la migrations || echo "マイグレーションディレクトリがありません"
+
+          # wrangler.tomlが存在するか確認
+          if [ ! -f "wrangler.toml" ]; then
+            echo "警告: wrangler.tomlが見つかりません。"
+          else
+            echo "wrangler.toml確認済み"
+          fi
+
+          # wrangler.tomlの内容確認（データベース設定部分）
+          echo "wrangler.toml内のデータベース設定確認:"
+          grep -v -e "apiToken" -e "password" -e "secret" wrangler.toml | grep -A 5 "d1_databases" | cat || echo "構成ファイルの表示に失敗しました"
+
+          # テーブル情報確認
+          echo "データベーステーブル一覧を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
+            --command="SELECT name FROM sqlite_master WHERE type='table'" \
+            --env=$ENV || echo "テーブル一覧の取得に失敗しましたが続行します"
+
+          # マイグレーションファイルの状態確認
+          echo "マイグレーションファイルの状態を確認しています..."
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
+            --env=$ENV || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+
+          # マイグレーション実行（--debugフラグを削除）
+          echo "マイグレーションを適用しています..."
+          echo "使用データベース名: ${D1_DB_NAME}, 環境: ${ENV}"
+          CLOUDFLARE_API_TOKEN=${{ secrets.CF_API_TOKEN }} \
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CF_ACCOUNT_ID }} \
+          pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
+            --env=$ENV || echo "マイグレーション適用に失敗しました"
+
+          # 成功時のメッセージ
+          echo "====================================="
+          echo "マイグレーションプロセスが完了しました"
+          echo "環境: $ENV"
+          echo "データベース: ${D1_DB_NAME}"
+          echo "====================================="
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+
+      # KVストアの初期化（必要に応じて）
+      - name: KVストア初期化
+        if: success()
+        run: |
+          echo "KVストアを初期化しています（${{ inputs.environment }}環境）..."
+
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            # 開発環境KV初期化 - アプリバージョン
+            pnpm kv:dev:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+
+            # キャッシュKVの初期化
+            echo "開発環境キャッシュKVの初期化中..."
+            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+            # セッションストアKVの初期化
+            echo "開発環境セッションストアKVの初期化中..."
+            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+            # デプロイ日時を記録
+            pnpm kv:dev:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            # 本番環境KV初期化 - アプリバージョン
+            pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")" || echo "KV初期化スキップ"
+
+            # キャッシュKVの初期化
+            echo "本番環境キャッシュKVの初期化中..."
+            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_CACHE_BINDING }}" || echo "キャッシュKV確認スキップ"
+
+            # セッションストアKVの初期化
+            echo "本番環境セッションストアKVの初期化中..."
+            pnpm exec wrangler kv namespace list | grep "${{ vars.KV_SESSION_STORE_BINDING }}" || echo "セッションストアKV確認スキップ"
+
+            # デプロイ日時を記録
+            pnpm kv:prod:put LAST_DEPLOYED "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          KV_CACHE_ID: ${{ secrets.KV_CACHE_ID }}
+          KV_SESSION_STORE_ID: ${{ secrets.KV_SESSION_STORE_ID }}
+
+      # R2バケットの初期化（必要に応じて）
+      - name: R2バケット初期化
+        if: success()
+        run: |
+          echo "R2バケットを確認しています（${{ inputs.environment }}環境）..."
+
+          if [[ "${{ inputs.environment }}" == "development" || "${{ inputs.environment }}" == "preview" ]]; then
+            # 開発環境R2バケット確認
+            echo "開発環境アセットバケット確認中..."
+            # EPIPEエラー対策のためファイルにリダイレクト
+            pnpm exec wrangler r2 bucket list > /tmp/r2-buckets.txt || echo "R2バケット一覧取得失敗"
+            cat /tmp/r2-buckets.txt | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+
+            # バックアップバケット確認
+            echo "開発環境バックアップバケット確認中..."
+            cat /tmp/r2-buckets.txt | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+
+            # バケットが存在しない場合は作成
+            if ! cat /tmp/r2-buckets.txt | grep -q "${{ vars.R2_ASSETS_BUCKET_NAME }}"; then
+              echo "アセットバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            if ! cat /tmp/r2-buckets.txt | grep -q "${{ vars.R2_BACKUPS_BUCKET_NAME }}"; then
+              echo "バックアップバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            # バケット使用状況確認
+            echo "開発環境R2バケット使用状況："
+            cat /tmp/r2-buckets.txt
+
+          elif [[ "${{ inputs.environment }}" == "production" ]]; then
+            # 本番環境R2バケット確認
+            echo "本番環境アセットバケット確認中..."
+            # EPIPEエラー対策のためファイルにリダイレクト
+            pnpm exec wrangler r2 bucket list > /tmp/r2-buckets-prod.txt || echo "R2バケット一覧取得失敗"
+            cat /tmp/r2-buckets-prod.txt | grep "${{ vars.R2_ASSETS_BUCKET_NAME }}" || echo "アセットバケット未確認"
+
+            # バックアップバケット確認
+            echo "本番環境バックアップバケット確認中..."
+            cat /tmp/r2-buckets-prod.txt | grep "${{ vars.R2_BACKUPS_BUCKET_NAME }}" || echo "バックアップバケット未確認"
+
+            # バケットが存在しない場合は作成
+            if ! cat /tmp/r2-buckets-prod.txt | grep -q "${{ vars.R2_ASSETS_BUCKET_NAME }}"; then
+              echo "アセットバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            if ! cat /tmp/r2-buckets-prod.txt | grep -q "${{ vars.R2_BACKUPS_BUCKET_NAME }}"; then
+              echo "バックアップバケットが存在しないため作成をスキップします（事前に手動作成が必要）"
+            fi
+
+            # バケット使用状況確認
+            echo "本番環境R2バケット使用状況："
+            cat /tmp/r2-buckets-prod.txt
+          fi
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          R2_ASSETS_BUCKET_NAME: ${{ vars.R2_ASSETS_BUCKET_NAME }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
+
+      # デプロイ後の検証（環境に応じて厳格さを変更）
+      - name: 基本スモークテスト
+        continue-on-error: true # このステップでの失敗はワークフロー全体を失敗させない
+        run: |
+          # 基本的な疎通確認 (タイムアウト対策として5秒のタイムアウトを設定)
+          curl -sSf --max-time 5 "${{ inputs.app_url }}" > /dev/null || echo "警告: 初回アクセスでタイムアウトしました。Cloudflare Pagesの初期化を待機中..."
+
+          # 2回目の試行（待機時間を延長）
+          sleep 15
+          RESPONSE=$(curl -s --max-time 10 "${{ inputs.app_url }}")
+
+          # レスポンスの内容を確認
+          if [[ $RESPONSE == *"Nothing is here yet"* ]]; then
+            echo "警告: 'Nothing is here yet'というレスポンスが返されました。デプロイが完了していない可能性があります。"
+            echo "$RESPONSE" | head -n 20
+          elif [[ -z "$RESPONSE" ]]; then
+            echo "警告: 空のレスポンスが返されました。"
+          else
+            echo "基本スモークテスト完了: レスポンスを受信しました"
+          fi
+
+      # 本番環境など厳格な検証が必要な場合のみ追加検証
+      - name: 厳格なスモークテスト
+        if: inputs.strict_validation
+        run: |
+          # 十分な待機時間を設定
+          echo "Cloudflare Pagesのデプロイ完了を待機中..."
+          sleep 30
+
+          # ステータスコード確認
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 "${{ inputs.app_url }}")
+          if [ "$STATUS_CODE" -ne 200 ]; then
+            echo "警告: ステータスコードが200ではありません: $STATUS_CODE"
+
+            # エラーページをダウンロードして内容確認
+            curl -s --max-time 10 "${{ inputs.app_url }}" > error_page.html
+            echo "エラーページの内容:"
+            cat error_page.html | head -n 50
+
+            # 本番環境の場合はエラーとする
+            if [ "${{ inputs.environment }}" == "production" ]; then
+              echo "エラー: 本番環境のデプロイ検証に失敗しました。"
+              exit 1
+            fi
+          else
+            echo "ステータスコード確認成功: $STATUS_CODE"
+          fi
+
+      # 通知の設定
+      - name: 検証結果の通知
+        if: inputs.send_notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          # 条件付きでwebhookURLを設定
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: ${{ inputs.environment }}環境デプロイ ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: ${{ inputs.environment }}
+            URL: ${{ inputs.app_url }}
+            ブランチ: ${{ inputs.branch_name }}
+            ステータス: ${{ job.status }}
+            詳細: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

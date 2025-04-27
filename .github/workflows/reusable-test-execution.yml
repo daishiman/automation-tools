@@ -1,0 +1,261 @@
+name: 再利用可能テスト実行
+
+# テスト実行を一元化した再利用可能ワークフロー
+# このワークフローは各種テスト（単体、コンポーネント、統合テストなど）の実行を標準化し、
+# テスト結果やカバレッジレポートの処理を自動化します
+on:
+  workflow_call:
+    inputs:
+      test_type:
+        description: 'テストタイプ (unit, component, integration など)'
+        required: true
+        type: string
+      test_command:
+        description: '実行するテストコマンド'
+        required: true
+        type: string
+      coverage_command:
+        description: 'カバレッジ計測用コマンド（指定しない場合はカバレッジを計測しない）'
+        required: false
+        type: string
+      coverage_threshold:
+        description: 'カバレッジ閾値（％）'
+        required: false
+        default: '70'
+        type: string
+      junit_path:
+        description: 'JUnitレポートのパス'
+        required: false
+        default: 'junit.xml'
+        type: string
+      coverage_path:
+        description: 'カバレッジレポートのディレクトリパス'
+        required: false
+        default: 'coverage'
+        type: string
+      report_to_pr:
+        description: 'PRにレポートするかどうか'
+        required: false
+        default: true
+        type: boolean
+    # このワークフローが呼び出し元に返す出力値の定義
+    # 他のワークフローやジョブでこれらの値を使用可能
+    outputs:
+      test_success:
+        description: 'テスト実行が成功したかどうか'
+        value: ${{ jobs.test.outputs.test_success }}
+      coverage_success:
+        description: 'カバレッジ計測が成功したかどうか'
+        value: ${{ jobs.test.outputs.coverage_success }}
+      coverage_value:
+        description: 'カバレッジ値（%）'
+        value: ${{ jobs.test.outputs.coverage_value }}
+
+jobs:
+  test:
+    name: '${{ inputs.test_type }}テスト実行'
+    runs-on: ubuntu-latest
+    # テスト実行結果を他のジョブで利用できるように出力
+    outputs:
+      test_success: ${{ steps.run_test.outcome == 'success' }}
+      coverage_success: ${{ steps.run_coverage.outcome == 'success' }}
+      coverage_value: ${{ steps.check_coverage.outputs.coverage_value || '0' }}
+    steps:
+      # ワークフローの基本的なセットアップステップ
+      - name: ソースコードのチェックアウト
+        uses: actions/checkout@v4
+
+      # PNPMのセットアップ（Node.jsパッケージマネージャー）
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      # キャッシュストレージ設定（キャッシュ展開問題対策）
+      - name: PNPMキャッシュストレージ設定
+        run: |
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+          mkdir -p ./.pnpm-store
+
+      # Node.jsのセットアップとPNPMキャッシュの設定
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      # プロジェクト依存関係のインストール
+      - name: 依存関係のインストール
+        id: install
+        continue-on-error: true
+        run: pnpm install
+
+      # 依存関係のインストールに失敗した場合は再試行
+      - name: 依存関係のインストール（再試行）
+        if: steps.install.outcome != 'success'
+        run: |
+          echo "依存関係のインストールを再試行します..."
+          rm -rf node_modules
+          pnpm store prune
+
+          # キャッシュ問題対策
+          pnpm install --force --no-frozen-lockfile
+
+          # キャッシュ展開タイムアウト対策
+          echo "PNPM_CACHE_FOLDER=./.pnpm-store" >> $GITHUB_ENV
+
+          # メモリ設定の調整
+          export NODE_OPTIONS="--max_old_space_size=4096"
+
+      # テスト環境の情報確認と設定ファイルの検証
+      - name: テスト環境確認
+        run: |
+          echo "Node.jsバージョン: $(node -v)"
+          echo "PNPMバージョン: $(pnpm -v)"
+          echo "テストタイプ: ${{ inputs.test_type }}"
+
+          # テストフレームワーク設定ファイルの存在確認
+          if [ -f "vitest.config.ts" ]; then
+            echo "vitest.config.ts が見つかりました"
+          elif [ -f "jest.config.js" ]; then
+            echo "jest.config.js が見つかりました"
+          else
+            echo "⚠️ テスト設定ファイルが見つかりません"
+            # 基本的なテスト設定ファイルの作成を検討
+          fi
+
+      # テストコマンドの存在確認
+      - name: テストコマンド確認
+        id: check_test_command
+        run: |
+          if grep -q "\"test" package.json || grep -q "\"vitest" package.json; then
+            echo "✅ テストコマンドが見つかりました"
+            echo "command_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ テストコマンドが見つかりません"
+            echo "command_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # テストコマンドの実行
+      - name: テスト実行
+        id: run_test
+        continue-on-error: true
+        if: steps.check_test_command.outputs.command_exists != 'false'
+        timeout-minutes: 10
+        run: |
+          # キャッシュ安定化のための待機
+          echo "テスト実行前に3秒待機しています..."
+          sleep 3
+
+          echo "テストコマンドを実行: ${{ inputs.test_command }}"
+          # 最大3回リトライ
+          for i in {1..3}; do
+            echo "試行 $i/3..."
+            set +e
+            ${{ inputs.test_command }}
+            TEST_EXIT_CODE=$?
+            set -e
+
+            if [ $TEST_EXIT_CODE -eq 0 ]; then
+              echo "✅ テスト実行に成功しました"
+              exit 0
+            elif [ $i -lt 3 ]; then
+              echo "⚠️ テスト実行に失敗しました。5秒後に再試行します..."
+              sleep 5
+            else
+              echo "❌ テスト実行に失敗しました。最大リトライ回数に達しました。"
+              exit $TEST_EXIT_CODE
+            fi
+          done
+        env:
+          # Node.jsヒープメモリサイズを増加（大規模テスト用）
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          # ソースディレクトリをモジュール解決パスに追加
+          NODE_PATH: 'src'
+          # Vitestのログレベル設定
+          VITEST_LOG_LEVEL: 'info'
+
+      # カバレッジ計測の実行（指定された場合のみ）
+      - name: カバレッジ計測
+        id: run_coverage
+        if: inputs.coverage_command != '' && steps.check_test_command.outputs.command_exists != 'false'
+        continue-on-error: true
+        run: |
+          echo "カバレッジ計測コマンドを実行: ${{ inputs.coverage_command }}"
+          ${{ inputs.coverage_command }}
+        env:
+          # Node.jsのメモリ設定（カバレッジ生成は多くのメモリを使用）
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          NODE_PATH: 'src'
+          VITEST_LOG_LEVEL: 'info'
+
+      # カバレッジファイルの存在確認
+      - name: カバレッジファイル確認
+        id: check_coverage_file
+        if: inputs.coverage_command != ''
+        run: |
+          if [ -d "${{ inputs.coverage_path }}" ]; then
+            echo "✅ カバレッジディレクトリが見つかりました"
+
+            if [ -f "${{ inputs.coverage_path }}/coverage-summary.json" ]; then
+              echo "✅ カバレッジサマリーファイルが見つかりました"
+              echo "file_exists=true" >> $GITHUB_OUTPUT
+            else
+              echo "⚠️ カバレッジサマリーファイルが見つかりません"
+              echo "file_exists=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "⚠️ カバレッジディレクトリが見つかりません"
+            echo "file_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      # カバレッジ結果の分析と閾値との比較
+      - name: カバレッジ閾値チェック
+        id: check_coverage
+        if: inputs.coverage_command != '' && steps.check_coverage_file.outputs.file_exists == 'true'
+        run: |
+          if [ -f ${{ inputs.coverage_path }}/coverage-summary.json ]; then
+            # カバレッジレポートから総行カバレッジを抽出
+            COVERAGE=$(cat ${{ inputs.coverage_path }}/coverage-summary.json | jq -r '.total.lines.pct')
+            echo "総行カバレッジ: $COVERAGE%"
+            echo "coverage_value=$COVERAGE" >> $GITHUB_OUTPUT
+
+            # カバレッジ閾値との比較
+            if (( $(echo "$COVERAGE < ${{ inputs.coverage_threshold }}" | bc -l) )); then
+              echo "⚠️ テストカバレッジが目標値（${{ inputs.coverage_threshold }}%）を下回っています"
+              echo "現在のカバレッジ: $COVERAGE%"
+              echo "開発段階のため、カバレッジ不足は警告として扱います"
+            else
+              echo "✅ テストカバレッジが目標値を満たしています"
+            fi
+          else
+            echo "⚠️ カバレッジレポートが見つかりません"
+            echo "coverage_value=0" >> $GITHUB_OUTPUT
+          fi
+
+  # テスト結果処理ジョブ
+  # 他の再利用可能ワークフローを呼び出してレポート生成
+  # テスト結果とカバレッジレポートをアーティファクトとして保存し、PRにコメントする
+  # 注意: reusable-test-reporting.ymlワークフローでは以下の入力が必要です
+  # - test_type: テストの種類を指定
+  # - junit_path: JUnitレポートのパス
+  # - coverage_path: カバレッジレポートのディレクトリパス
+  # - retention_days: アーティファクト保持日数
+  # - comment_on_pr: PRにコメントするかどうか
+  # - fail_on_empty: ファイルがない場合に失敗するかどうか
+  report:
+    name: '${{ inputs.test_type }}テスト結果処理'
+    needs: [test]
+    if: always() # テストが失敗しても常に実行
+    uses: ./.github/workflows/reusable-test-reporting.yml
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    with:
+      test_type: ${{ inputs.test_type }}
+      junit_path: ${{ inputs.junit_path }}
+      coverage_path: ${{ inputs.coverage_path }}
+      comment_on_pr: ${{ inputs.report_to_pr }}
+      retention_days: 7
+      fail_on_empty: false
