@@ -69,8 +69,7 @@ function splitSqlStatements(sqlContent) {
     const nextChar = sqlContent[i + 1] || '';
 
     // 引用符内かどうかを追跡
-    if ((char === "'" || char === '"' || char === '`') &&
-        (i === 0 || sqlContent[i - 1] !== '\\')) {
+    if ((char === "'" || char === '"' || char === '`') && (i === 0 || sqlContent[i - 1] !== '\\')) {
       if (!inQuote) {
         inQuote = true;
         quoteChar = char;
@@ -93,12 +92,12 @@ function splitSqlStatements(sqlContent) {
     statements.push(currentStatement);
   }
 
-  return statements.filter(stmt => stmt.trim());
+  return statements.filter((stmt) => stmt.trim());
 }
 
 // ALTER TABLE文を安全に実行する準備をする関数
 function prepareAlterTableStatements(sqlStatements) {
-  return sqlStatements.map(stmt => {
+  return sqlStatements.map((stmt) => {
     // ALTER TABLE文かどうかを確認
     if (/^\s*ALTER\s+TABLE/i.test(stmt)) {
       // ALTER TABLE ADD COLUMN文の場合

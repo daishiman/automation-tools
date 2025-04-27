@@ -1,0 +1,91 @@
+name: 手動本番環境マイグレーション
+
+# 本番環境のデータベースマイグレーションを手動で実行するためのワークフロー
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: '本番環境のマイグレーションを実行しますか？'
+        required: true
+        default: 'no'
+        type: choice
+        options:
+          - 'yes'
+          - 'no'
+      notes:
+        description: 'マイグレーションに関する注記'
+        required: false
+        type: string
+
+# 実行の最適化（同時実行を防止）
+concurrency:
+  group: prod-migration-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: 本番環境マイグレーション
+    runs-on: ubuntu-latest
+    # 確認が「yes」の場合のみ実行
+    if: github.event.inputs.confirm == 'yes'
+    # 本番環境を使用
+    environment: production
+
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: PNPMのセットアップ
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.10.0
+
+      - name: Node.jsのセットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 依存関係のインストール
+        run: pnpm install
+
+      # マイグレーション前のバックアップステップ
+      - name: データベースバックアップ
+        run: pnpm db:backup
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          R2_BACKUPS_BUCKET_NAME: ${{ vars.R2_BACKUPS_BUCKET_NAME }}
+
+      # 本番環境マイグレーション実行
+      - name: 本番環境マイグレーション実行
+        run: pnpm run:prod-migration
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CF_ACCOUNT_ID }}
+          D1_DATABASE_NAME: ${{ vars.D1_DATABASE_NAME }}
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+          KV_CACHE_ID: ${{ secrets.KV_CACHE_ID }}
+          KV_SESSION_STORE_ID: ${{ secrets.KV_SESSION_STORE_ID }}
+
+      # 結果通知ステップ
+      - name: マイグレーション結果通知
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK || '' }}
+          SLACK_CHANNEL: deployments
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
+          SLACK_TITLE: 本番環境マイグレーション ${{ job.status == 'success' && '✅ 成功' || '❌ 失敗' }}
+          SLACK_MESSAGE: |
+            環境: production
+            データベース: ${{ vars.D1_DATABASE_NAME }}
+            ステータス: ${{ job.status }}
+            実行者: ${{ github.actor }}
+            注記: ${{ github.event.inputs.notes || 'なし' }}
