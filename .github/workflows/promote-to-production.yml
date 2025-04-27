@@ -364,33 +364,33 @@ jobs:
           grep -v -e "apiToken" -e "password" -e "secret" wrangler.toml | grep -A 5 "d1_databases" | cat || echo "構成ファイルの表示に失敗しました"
 
           # テーブル情報確認
-          echo "データベーステーブル一覧を確認しています..."
+          echo "# データベーステーブル一覧を確認しています..."
           CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler d1 execute "${D1_DB_NAME}" \
-            --command="SELECT name FROM sqlite_master WHERE type='table'" \
-            --env=$ENV --remote || echo "テーブル一覧の取得に失敗しましたが続行します"
+          pnpm exec wrangler d1 execute $DATABASE_NAME \
+            --command="SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name;" \
+            --env=$ENV || echo "テーブル一覧の取得に失敗しましたが続行します"
 
           # マイグレーションファイルの状態確認
-          echo "マイグレーションファイルの状態を確認しています..."
+          echo "# マイグレーションファイルの状態を確認しています..."
           CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler d1 migrations list "${D1_DB_NAME}" \
-            --env=$ENV --remote || echo "マイグレーション一覧の取得に失敗しましたが続行します"
+          pnpm exec wrangler d1 migrations list $DATABASE_NAME \
+            --env=$ENV || echo "マイグレーション一覧の取得に失敗しましたが続行します"
 
           # マイグレーション実行
-          echo "マイグレーションを適用しています..."
-          echo "使用データベース名: ${D1_DB_NAME}, 環境: ${ENV}"
+          echo "# マイグレーションを適用しています..."
+          echo "使用データベース名: ${DATABASE_NAME}, 環境: ${ENV}"
           CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm exec wrangler d1 migrations apply "${D1_DB_NAME}" \
-            --env=$ENV --remote || echo "マイグレーション適用に失敗しました"
+          pnpm exec wrangler d1 migrations apply $DATABASE_NAME \
+            --env=$ENV || echo "マイグレーション適用に失敗しました"
 
           # 成功時のメッセージ
           echo "====================================="
           echo "マイグレーションプロセスが完了しました"
           echo "環境: ${ENV}"
-          echo "データベース: ${D1_DB_NAME}"
+          echo "データベース: ${DATABASE_NAME}"
           echo "====================================="
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -400,14 +400,11 @@ jobs:
       # KVストア初期化
       - name: 本番KVストア初期化
         run: |
-          # アプリバージョンをKVに保存
+          # アプリケーションバージョンをKVに保存
+          echo "アプリケーションバージョンをKVに保存: ${{ env.APP_VERSION }}"
           CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }} \
           CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }} \
-          pnpm kv:prod:put APP_VERSION "$(node -p "require('./package.json').version")" --remote
-          echo "KVストア初期化完了"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          pnpm exec wrangler kv key put "APP_VERSION" "$(node -p "require('./package.json').version")" --binding=CACHE_PROD --remote
 
       # 結果通知
       - name: マイグレーション結果通知
