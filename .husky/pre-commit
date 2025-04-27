@@ -18,11 +18,29 @@ all_changed_files="$staged_files $unstaged_files"
 js_ts_files=$(echo "$all_changed_files" | grep -E '\.tsx?$|\.jsx?$' | grep -v '^scripts/' | sort -u || true)
 css_json_md_files=$(echo "$all_changed_files" | grep -E '\.(json|md|mdx|css)$' | sort -u || true)
 rules_files=$(echo "$all_changed_files" | grep -E '^rules/.+\.md$' | sort -u || true)
+# マイグレーション関連ファイルの検出
+drizzle_files=$(echo "$all_changed_files" | grep -E '^drizzle/.*\.sql$' | sort -u || true)
 
 # 変更がない場合は早期終了
 if [ -z "$all_changed_files" ]; then
   echo "📝 変更ファイルなし。チェックをスキップします。"
   exit 0
+fi
+
+# マイグレーションファイルの同期 (drizzleディレクトリに変更がある場合)
+if [ ! -z "$drizzle_files" ]; then
+  echo "🔄 SQLマイグレーションファイルの変更を検出しました。マイグレーションファイルを同期します..."
+  mkdir -p migrations
+  pnpm db:sync-migrations
+
+  if [ $? -eq 0 ]; then
+    echo "✅ マイグレーションファイルの同期が完了しました"
+    # 同期したファイルを自動的にステージングに追加
+    git add migrations/*.sql
+  else
+    echo "❌ マイグレーションファイルの同期に失敗しました"
+    has_errors=1
+  fi
 fi
 
 # テストスキップフラグをチェック
