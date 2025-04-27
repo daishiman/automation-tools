@@ -84,8 +84,9 @@ jobs:
       # メモリ設定を明示的に環境変数に設定
       - name: 環境変数設定
         run: |
-          echo "NODE_OPTIONS=--max_old_space_size=8192" >> $GITHUB_ENV
           echo "PNPM_FLAGS=--no-frozen-lockfile" >> $GITHUB_ENV
+        env:
+          NODE_OPTIONS: '--max_old_space_size=8192'
 
       # ビルドキャッシュの活用
       - name: Next.jsキャッシュのセットアップ
@@ -204,8 +205,9 @@ jobs:
       # メモリ設定を明示的に環境変数に設定
       - name: 環境変数設定
         run: |
-          echo "NODE_OPTIONS=--max_old_space_size=8192" >> $GITHUB_ENV
           echo "PNPM_FLAGS=--no-frozen-lockfile" >> $GITHUB_ENV
+        env:
+          NODE_OPTIONS: '--max_old_space_size=8192'
 
       # 依存関係のインストールを分割して実行
       - name: 依存関係のインストール（基本パッケージ）
@@ -253,7 +255,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy out --project-name automationa-tools --branch ${{ inputs.branch_name }} --commit-dirty true
-          packageManager: pnpm
           wranglerVersion: '4.13.2'
           workingDirectory: .
         env:
