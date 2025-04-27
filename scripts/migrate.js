@@ -10,22 +10,26 @@ const __dirname = path.dirname(__filename);
 // マイグレーションディレクトリのパス
 const MIGRATIONS_DIR = path.resolve(__dirname, '../drizzle');
 
-// 環境に基づいてデータベース名を決定
+// 環境に基づいてデータベース名とconfigファイルを決定
 const ENV = process.env.ENVIRONMENT || 'local';
 let DB_NAME;
+let CONFIG_FILE;
 
 switch (ENV) {
   case 'production':
     DB_NAME = 'automationa-tools-prod-db';
+    CONFIG_FILE = 'wrangler.toml';
     break;
   case 'preview':
     DB_NAME = 'automationa-tools-dev-db';
+    CONFIG_FILE = 'wrangler.toml';
     break;
   default:
     DB_NAME = 'automationa-tools-local-db';
+    CONFIG_FILE = 'wrangler-local.toml';
 }
 
-console.log(`🔍 環境: ${ENV}, データベース: ${DB_NAME}`);
+console.log(`🔍 環境: ${ENV}, データベース: ${DB_NAME}, 設定ファイル: ${CONFIG_FILE}`);
 
 // すべてのSQLファイルを取得して昇順にソート
 const sqlFiles = fs
@@ -50,7 +54,7 @@ for (const file of sqlFiles) {
   try {
     // wranglerコマンドを実行
     // 環境に応じたコマンドオプションを追加
-    let command = `pnpm wrangler d1 execute ${DB_NAME} --file=${filePath}`;
+    let command = `pnpm wrangler d1 execute ${DB_NAME} --file=${filePath} --config=${CONFIG_FILE}`;
 
     // ローカル環境の場合は--localフラグを追加
     if (ENV === 'local') {
@@ -66,9 +70,14 @@ for (const file of sqlFiles) {
     });
     console.log(`✅ マイグレーション成功: ${file}`);
   } catch (error) {
-    console.error(`❌ マイグレーション失敗: ${file}`);
-    console.error(error.message);
-    process.exit(1);
+    // エラー処理を改善：既存テーブルのエラーを無視するオプション
+    if (error.message && error.message.includes('already exists')) {
+      console.warn(`⚠️ テーブルは既に存在します: ${file} - 処理を続行します`);
+    } else {
+      console.error(`❌ マイグレーション失敗: ${file}`);
+      console.error(error.message);
+      process.exit(1);
+    }
   }
 }
 
